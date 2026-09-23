@@ -1,0 +1,16 @@
+export const palette = {
+  bg: '#F3F7FB',
+  card: '#FFFFFF',
+  ink: '#12213B',
+  muted: '#6E7B8E',
+  faint: '#D9E3F1',
+  green: '#1CC3B5',
+  greenDark: '#0F8F8B',
+  mint: '#E9FBF8',
+  warm: '#FFF5DD',
+  amber: '#B77800',
+  blue: '#1E4AE8',
+  blueSoft: '#EAF0FF',
+  danger: '#D74C5C',
+  dangerSoft: '#FFF0F2',
+};
