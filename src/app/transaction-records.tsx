@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/transaction-records-screen';
+export { default } from '@/features/queueless/screens/staff/transaction-records-screen';

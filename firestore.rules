@@ -1,0 +1,204 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isOwner(userId) && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'azedricmarc@gmail.com';
+    }
+
+    function canManageAvailability() {
+      return isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.token.email_verified == true
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff'
+        );
+    }
+
+    function canReadAvailability() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    match /serviceAvailability/{serviceId} {
+      allow read: if canReadAvailability();
+      allow create, update: if canManageAvailability()
+        && serviceId in [
+          'tuition-payment',
+          'document-request',
+          'id-processing',
+          'scholarship-inquiry',
+          'general-transaction'
+        ]
+        && request.resource.data.keys().hasOnly(['enabled'])
+        && request.resource.data.keys().hasAll(['enabled'])
+        && request.resource.data.enabled is bool;
+      allow delete: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read: if settingId == 'operatingHours' && canReadAvailability();
+      allow create, update: if settingId == 'operatingHours'
+        && canManageAvailability()
+        && request.resource.data.keys().hasOnly([
+          'enabledWeekdays',
+          'openTime',
+          'closeTime',
+          'slotMinutes',
+          'closedDates'
+        ])
+        && request.resource.data.keys().hasAll([
+          'enabledWeekdays',
+          'openTime',
+          'closeTime',
+          'slotMinutes',
+          'closedDates'
+        ])
+        && request.resource.data.enabledWeekdays is list
+        && request.resource.data.enabledWeekdays.size() <= 7
+        && request.resource.data.openTime is string
+        && request.resource.data.closeTime is string
+        && request.resource.data.slotMinutes in [15, 30, 60]
+        && request.resource.data.closedDates is list
+        && request.resource.data.closedDates.size() <= 366;
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow create: if (
+          isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'email',
+            'displayName',
+            'role',
+            'studentNumber',
+            'createdAt'
+          ])
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.role == 'student'
+          && request.resource.data.studentNumber is string
+          && request.resource.data.studentNumber.size() > 0
+          && request.resource.data.createdAt == request.time
+        )
+        || (
+          isAdmin()
+          && exists(/databases/$(database)/documents/staffApplications/$(userId))
+          && get(/databases/$(database)/documents/staffApplications/$(userId)).data.status == 'pending'
+          && request.resource.data.keys().hasOnly([
+            'email',
+            'displayName',
+            'role',
+            'studentNumber',
+            'createdAt'
+          ])
+          && request.resource.data.email == get(/databases/$(database)/documents/staffApplications/$(userId)).data.email
+          && request.resource.data.displayName == get(/databases/$(database)/documents/staffApplications/$(userId)).data.displayName
+          && request.resource.data.role == 'staff'
+          && request.resource.data.createdAt == request.time
+        );
+
+      allow read: if isVerifiedOwner(userId);
+
+      allow update: if (
+          isVerifiedOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'email',
+            'displayName',
+            'role',
+            'studentNumber',
+            'createdAt'
+          ])
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.displayName == resource.data.displayName
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.studentNumber is string
+          && request.resource.data.studentNumber.size() > 0
+        )
+        || (
+          isAdmin()
+          && request.resource.data.keys().hasOnly([
+            'email',
+            'displayName',
+            'role',
+            'studentNumber',
+            'createdAt'
+          ])
+          && request.resource.data.role == 'staff'
+        );
+
+      allow delete: if isVerifiedOwner(userId);
+    }
+
+    match /staffApplications/{userId} {
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly([
+          'email',
+          'displayName',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.status == 'pending-verification'
+        && request.resource.data.createdAt == request.time;
+
+      allow read: if isAdmin();
+
+      allow update: if (
+          isOwner(userId)
+          && request.auth.token.email_verified == true
+          && resource.data.status == 'pending-verification'
+          && request.resource.data.keys().hasOnly([
+            'email',
+            'displayName',
+            'status',
+            'createdAt'
+          ])
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.displayName == resource.data.displayName
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.status == 'pending'
+        )
+        || (
+          isAdmin()
+          && resource.data.status == 'pending'
+          && request.resource.data.keys().hasOnly([
+            'email',
+            'displayName',
+            'status',
+            'createdAt',
+            'role'
+          ])
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.displayName == resource.data.displayName
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.get('role', null) == resource.data.get('role', null)
+          && request.resource.data.status in ['approved', 'rejected']
+        );
+
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

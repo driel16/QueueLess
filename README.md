@@ -2,6 +2,15 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Project layout
+
+- `src/app/` contains Expo Router route entry points.
+- `src/features/queueless/screens/auth/` contains splash and sign-in/registration screens.
+- `src/features/queueless/screens/student/` contains student-facing screens and booking flows.
+- `src/features/queueless/screens/staff/` contains cashier and staff screens.
+- `src/features/queueless/components.tsx`, `data.ts`, `palette.ts`, and `styles.ts` hold shared UI, demo data, colors, and styles for the QueueLess feature.
+- `src/components/`, `src/hooks/`, and `src/constants/` hold app-wide reusable components, hooks, and theme constants.
+
 ## Get started
 
 1. Install dependencies
@@ -54,3 +63,35 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Firebase Authentication setup
+
+This project uses the Firebase JavaScript SDK, which works in Expo Go.
+
+1. Register a **Web app** in the `queueless-3e183` Firebase project and copy its full Firebase configuration.
+2. Copy `.env.example` to `.env` and fill in the Web app's `apiKey`, `appId`, and other available values. These `EXPO_PUBLIC_` values are included in the app bundle; they are identifiers, not secrets.
+3. In Firebase Authentication, enable the Email/Password provider.
+4. Create a Cloud Firestore database and publish the rules in `firestore.rules`.
+5. Staff can submit an application from the Staff Sign In screen. New applications remain `pending-verification` until the applicant opens the Firebase email verification link and taps **I Verified My Email** in the app. Only then does the application become visible to the admin portal as pending. The admin portal is available from Staff Sign In and is restricted to the verified Firebase Authentication email `azedricmarc@gmail.com`. Ensure that address has a password-based Firebase Auth account and is verified; if it is not already registered, create it through student signup and verify the email first. The admin portal can then approve or reject applications; approval creates `users/{uid}` with the `staff` role. Applicants cannot grant themselves staff access.
+6. Student registration sends a Firebase email verification link. Users must open it before signing in. Configure the verification email template in **Authentication → Templates** if needed.
+7. Publish the updated Firestore rules after changes. They allow verified `azedricmarc@gmail.com` to read staff applications, approve/reject them, and create staff profiles:
+   ```bash
+   npx firebase-tools deploy --only firestore:rules --project queueless-3e183
+   ```
+8. Restart Expo after changing `.env`:
+
+   ```bash
+   npx expo start
+   ```
+
+Student registration collects a display name and creates a `users/{uid}` profile with the `student` role, email, and student number. The home greeting and profile screen show those saved details and email-verification status. Existing profiles without a display name fall back to the email name. Students can delete their account from the profile screen after re-entering their password and confirming their email address; this deletes the Firebase Authentication user and their `users/{uid}` profile. Publish updated Firestore rules after changes. Staff sign-in is allowed only when the matching profile has the `staff` role.
+
+### Staff service and schedule settings
+
+Verified staff accounts and the verified admin account can manage service availability from the dedicated **Staff → Services** tab. The student service list hides services that staff turn off. The **Manage schedule** screen under Services configures operating weekdays, 24-hour opening and closing times, 15/30/60-minute appointment slots, and specific closed dates. Students see only dates and time slots that match the published schedule. The **Settings** tab is reserved for staff account details and sign-out. Until staff save a schedule, the calendar defaults to weekdays from 08:00 to 17:00 in 30-minute slots.
+
+Availability is stored in `serviceAvailability/{serviceId}` documents and `settings/operatingHours`. Verified users can read these settings; only verified staff profiles (`users/{uid}.role == "staff"`) and the verified admin can write them. Publish `firestore.rules` after updating the application:
+
+```bash
+npx firebase-tools deploy --only firestore:rules --project queueless-3e183
+```

@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/queue-screen';
+export { default } from '@/features/queueless/screens/student/queue-screen';

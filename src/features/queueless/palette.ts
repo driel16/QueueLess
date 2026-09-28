@@ -3,6 +3,7 @@ export const palette = {
   card: '#FFFFFF',
   ink: '#12213B',
   muted: '#6E7B8E',
+  placeholder: '#5F6B7D',
   faint: '#D9E3F1',
   green: '#1CC3B5',
   greenDark: '#0F8F8B',
@@ -11,6 +12,9 @@ export const palette = {
   amber: '#B77800',
   blue: '#1E4AE8',
   blueSoft: '#EAF0FF',
+  splashBlue: '#203F91',
+  splashTeal: '#0E9588',
+  splashMuted: '#91A5D2',
   danger: '#D74C5C',
   dangerSoft: '#FFF0F2',
 };

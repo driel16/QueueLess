@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/appointment-management-screen';
+export { default } from '@/features/queueless/screens/staff/appointment-management-screen';

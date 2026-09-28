@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/staff-login-screen';
+export { default } from '@/features/queueless/screens/auth/staff-login-screen';

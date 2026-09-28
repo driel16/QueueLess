@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/queue-capacity-screen';
+export { default } from '@/features/queueless/screens/staff/queue-capacity-screen';

@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/register-screen';
+export { default } from '@/features/queueless/screens/auth/register-screen';

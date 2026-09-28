@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
-import { AlertCircle, ArrowLeft, AtSign, Eye, EyeOff, LockKeyhole } from 'lucide-react-native';
+import { AlertCircle, ArrowLeft, AtSign, Eye, EyeOff, Inbox, LockKeyhole } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +41,7 @@ export function Field({
   error,
   keyboardType = 'default',
   autoCapitalize = 'none',
+  icon,
 }: {
   label: string;
   value: string;
@@ -49,28 +51,39 @@ export function Field({
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'number-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   error?: string;
+  icon?: LucideIcon;
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const Icon = icon ?? (secure ? LockKeyhole : AtSign);
 
   return (
     <View style={styles.fieldBlock}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputShell, error && styles.inputShellError]}>
-        {secure ? <LockKeyhole size={17} color={error ? palette.danger : palette.green} /> : <AtSign size={17} color={error ? palette.danger : palette.green} />}
+      <View style={[styles.inputShell, focused && styles.inputShellFocused, error && styles.inputShellError]}>
+        <Icon size={17} color={error ? palette.danger : focused ? palette.greenDark : palette.muted} />
         <TextInput
           editable={onChangeText !== undefined}
           secureTextEntry={secure && !showPassword}
           style={styles.input}
+          accessibilityLabel={label}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={palette.muted}
+          placeholderTextColor={palette.placeholder}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
+          selectionColor={palette.greenDark}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
         {secure ? (
-          <Pressable onPress={() => setShowPassword((prev) => !prev)} hitSlop={8}>
+          <Pressable
+            onPress={() => setShowPassword((prev) => !prev)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}>
             {showPassword ? <EyeOff size={16} color={palette.muted} /> : <Eye size={16} color={palette.muted} />}
           </Pressable>
         ) : null}
@@ -95,6 +108,18 @@ export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss
           <Text style={styles.errorDismiss}>Dismiss</Text>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+export function EmptyState({ title, message }: { title: string; message: string }) {
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyStateIcon}>
+        <Inbox size={22} color={palette.greenDark} />
+      </View>
+      <Text style={styles.emptyStateTitle}>{title}</Text>
+      <Text style={styles.emptyStateMessage}>{message}</Text>
     </View>
   );
 }

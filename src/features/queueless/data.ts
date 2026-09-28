@@ -1,31 +1,36 @@
 import type { Href } from 'expo-router';
 import type { LucideIcon } from 'lucide-react-native';
-import { BookOpen, Home, LayoutDashboard, ListOrdered, Settings, UserRound } from 'lucide-react-native';
+import { BookOpen, CalendarDays, Home, LayoutDashboard, ListOrdered, Settings, UserRound } from 'lucide-react-native';
 
 import type { AppRoute, StaffRoute } from './types';
 
 export const services = [
   {
+    id: 'tuition-payment',
     title: 'Tuition Payment',
     body: 'Settle semester fees, installment dues, and school matriculation.',
     icon: 'CARD',
   },
   {
+    id: 'document-request',
     title: 'Document Request',
     body: 'Request and pay for Transcript of Records, certificates, and diplomas.',
     icon: 'DOC',
   },
   {
+    id: 'id-processing',
     title: 'ID Processing',
     body: 'Application for new, replacement, or validated student identification cards.',
     icon: 'ID',
   },
   {
+    id: 'scholarship-inquiry',
     title: 'Scholarship Inquiry',
     body: 'Consult with cashier on government grants and academic discounts.',
     icon: 'A+',
   },
   {
+    id: 'general-transaction',
     title: 'General Transaction',
     body: 'Over-the-counter payments for miscellaneous laboratory or athletic fees.',
     icon: 'GEN',
@@ -43,25 +48,28 @@ export const staffTabs: { key: StaffRoute; label: string; icon: LucideIcon; href
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/cashier-dashboard' },
   { key: 'requests', label: 'Requests', icon: BookOpen, href: '/appointment-requests' },
   { key: 'queue', label: 'Queue', icon: ListOrdered, href: '/active-queue' },
-  { key: 'settings', label: 'Settings', icon: Settings, href: '/service-management' },
+  { key: 'services', label: 'Services', icon: CalendarDays, href: '/service-management' },
+  { key: 'settings', label: 'Settings', icon: Settings, href: '/staff-settings' },
 ];
 
-export const appointmentRequests = [
-  { ticket: 'A025', name: 'Maria Santos', service: 'Tuition Payment', time: '10:00 AM', status: 'Pending' },
-  { ticket: 'A026', name: 'Carlos Tan', service: 'Document Request', time: '10:30 AM', status: 'Pending' },
-  { ticket: 'A027', name: 'Ana Reyes', service: 'ID Processing', time: '1:30 PM', status: 'Approved' },
-];
+export const appointmentRequests: {
+  ticket: string;
+  name: string;
+  service: string;
+  time: string;
+  status: string;
+}[] = [];
 
-export const activeQueue = [
-  { ticket: 'A021', name: 'Nina Cruz', service: 'Tuition Payment', status: 'Serving' },
-  { ticket: 'A022', name: 'David Lim', service: 'Tuition Payment', status: 'Waiting' },
-  { ticket: 'A023', name: 'Ana Reyes', service: 'ID Processing', status: 'Waiting' },
-  { ticket: 'A024', name: 'Carlos Tan', service: 'Document Request', status: 'Waiting' },
-  { ticket: 'A025', name: 'Maria Santos', service: 'Tuition Payment', status: 'Waiting' },
-];
+export const activeQueue: {
+  ticket: string;
+  name: string;
+  service: string;
+  status: string;
+}[] = [];
 
-export const staffMembers = [
-  { initials: 'RG', name: 'Rosa Garcia', role: 'Admin', status: 'Active' },
-  { initials: 'MR', name: 'Mark Reyes', role: 'Staff', status: 'Active' },
-  { initials: 'LC', name: 'Lisa Cruz', role: 'Staff', status: 'Offline' },
-];
+export const staffMembers: {
+  initials: string;
+  name: string;
+  role: string;
+  status: string;
+}[] = [];

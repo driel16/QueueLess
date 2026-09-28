@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/notifications-screen';
+export { default } from '@/features/queueless/screens/student/notifications-screen';

@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/splash-screen';
+export { default } from '@/features/queueless/screens/auth/splash-screen';

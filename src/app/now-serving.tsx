@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/now-serving-screen';
+export { default } from '@/features/queueless/screens/staff/now-serving-screen';

@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/cashier-dashboard-screen';
+export { default } from '@/features/queueless/screens/staff/cashier-dashboard-screen';

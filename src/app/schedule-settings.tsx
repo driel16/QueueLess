@@ -1,1 +1,1 @@
-export { default } from '@/features/queueless/screens/schedule-settings-screen';
+export { default } from '@/features/queueless/screens/staff/schedule-settings-screen';
