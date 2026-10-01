@@ -70,6 +70,8 @@ export function Field({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
+          accessibilityHint={error}
+          accessibilityState={{ disabled: onChangeText === undefined }}
           placeholderTextColor={palette.placeholder}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
@@ -91,7 +93,9 @@ export function Field({
       {error ? (
         <View style={styles.fieldErrorRow}>
           <AlertCircle size={14} color={palette.danger} />
-          <Text style={styles.fieldError}>{error}</Text>
+          <Text style={styles.fieldError} accessibilityRole="alert">
+            {error}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -104,7 +108,11 @@ export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss
       <AlertCircle size={18} color={palette.danger} />
       <Text style={styles.errorBannerText}>{message}</Text>
       {onDismiss ? (
-        <Pressable onPress={onDismiss} hitSlop={8} accessibilityLabel="Dismiss error">
+        <Pressable
+          onPress={onDismiss}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss error">
           <Text style={styles.errorDismiss}>Dismiss</Text>
         </Pressable>
       ) : null}
@@ -127,7 +135,11 @@ export function EmptyState({ title, message }: { title: string; message: string 
 export function Header({ title, subtitle, backTo }: { title: string; subtitle: string; backTo: string }) {
   return (
     <View style={styles.header}>
-      <Pressable style={styles.backButton} onPress={() => router.replace(backTo as never)}>
+      <Pressable
+        style={styles.backButton}
+        onPress={() => router.replace(backTo as never)}
+        accessibilityRole="button"
+        accessibilityLabel="Go back">
         <ArrowLeft size={18} color={palette.ink} strokeWidth={2.5} />
       </Pressable>
       <View>
@@ -146,7 +158,11 @@ export function StaffHeader({ title, subtitle, backTo }: { title: string; subtit
         <Text style={styles.headerSubtitle}>{subtitle}</Text>
       </View>
       {backTo ? (
-        <Pressable style={styles.smallIconButton} onPress={() => router.replace(backTo as never)}>
+        <Pressable
+          style={styles.smallIconButton}
+          onPress={() => router.replace(backTo as never)}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
           <ArrowLeft size={16} color={palette.ink} strokeWidth={2.5} />
         </Pressable>
       ) : null}
@@ -166,12 +182,18 @@ export function Badge({ label, tone }: { label: string; tone: 'warm' | 'green' }
 
 function BottomNav({ current }: { current: AppRoute }) {
   return (
-    <View style={styles.bottomBar}>
+    <View style={styles.bottomBar} accessibilityRole="tablist" accessibilityLabel="Student navigation">
       {tabs.map((tab) => {
         const active = current === tab.key || (current === 'schedule' && tab.key === 'services');
         const Icon = tab.icon;
         return (
-          <Pressable key={tab.key} style={styles.tabItem} onPress={() => router.replace(tab.href)}>
+          <Pressable
+            key={tab.key}
+            style={styles.tabItem}
+            onPress={() => router.replace(tab.href)}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: active }}>
             <Icon size={20} color={active ? palette.green : palette.muted} strokeWidth={2.2} />
             <Text style={[styles.tabLabel, active && styles.tabActive]}>{tab.label}</Text>
           </Pressable>
@@ -183,11 +205,17 @@ function BottomNav({ current }: { current: AppRoute }) {
 
 function StaffBottomNav({ current }: { current: StaffRoute }) {
   return (
-    <View style={styles.bottomBar}>
+    <View style={styles.bottomBar} accessibilityRole="tablist" accessibilityLabel="Staff navigation">
       {staffTabs.map((tab) => {
         const Icon = tab.icon;
         return (
-          <Pressable key={tab.key} style={styles.tabItem} onPress={() => router.replace(tab.href)}>
+          <Pressable
+            key={tab.key}
+            style={styles.tabItem}
+            onPress={() => router.replace(tab.href)}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: current === tab.key }}>
             <Icon size={20} color={current === tab.key ? palette.green : palette.muted} strokeWidth={2.2} />
             <Text style={[styles.tabLabel, current === tab.key && styles.tabActive]}>{tab.label}</Text>
           </Pressable>

@@ -8,9 +8,11 @@
     "scheme": "queueless",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.driel16.queueless",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.driel16.queueless",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

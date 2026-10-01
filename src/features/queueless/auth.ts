@@ -7,6 +7,7 @@ import {
   reauthenticateWithCredential,
   reload,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
@@ -281,6 +282,10 @@ export async function signOutCurrentUser() {
   await signOut(getFirebaseAuth());
 }
 
+export async function requestPasswordReset(email: string) {
+  await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
+}
+
 export async function deleteCurrentStudentAccount(
   confirmationEmail: string,
   password: string,
@@ -424,4 +429,29 @@ export function getAuthErrorMessage(error: unknown, action: 'login' | 'register'
   return action === 'login'
     ? 'Unable to sign in. Please try again.'
     : 'Unable to create your account. Please try again.';
+}
+
+export function getPasswordResetErrorMessage(error: unknown) {
+  if (error instanceof FirebaseConfigurationError) {
+    return error.message;
+  }
+
+  if (error instanceof FirebaseError) {
+    switch (error.code) {
+      case 'auth/invalid-email':
+        return 'Enter a valid email address.';
+      case 'auth/too-many-requests':
+        return 'Too many requests. Please wait before trying again.';
+      case 'auth/network-request-failed':
+        return 'Could not connect. Check your internet connection and try again.';
+      case 'auth/operation-not-allowed':
+        return 'Password reset is not enabled in Firebase Authentication.';
+      case 'auth/invalid-api-key':
+        return 'Firebase configuration is invalid. Check the API key in your local .env file.';
+      default:
+        return 'Could not send a reset email. Please try again.';
+    }
+  }
+
+  return 'Could not send a reset email. Please try again.';
 }

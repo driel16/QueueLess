@@ -80,6 +80,14 @@ export function StaffLoginScreen() {
             secure
             placeholder="Enter your password"
           />
+          <Pressable
+            style={styles.forgotPasswordLink}
+            onPress={() =>
+              router.push({ pathname: '/forgot-password', params: { email, role: 'staff' } })
+            }
+            accessibilityRole="link">
+            <Text style={styles.linkText}>Forgot password?</Text>
+          </Pressable>
         </View>
         <View style={styles.loginActions}>
           <Pressable
@@ -151,8 +159,8 @@ export function StaffLoginScreen() {
           </Pressable>
           <Pressable
             style={styles.roleSwitchButton}
-            onPress={() => router.replace('/')}>
-            <Text style={styles.roleSwitchText}>Not staff? Choose another account type</Text>
+            onPress={() => router.replace('/choose-role')}>
+            <Text style={styles.roleSwitchText}>Choose another account type</Text>
           </Pressable>
         </View>
       </ScrollView>

@@ -11,6 +11,10 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 - `src/features/queueless/components.tsx`, `data.ts`, `palette.ts`, and `styles.ts` hold shared UI, demo data, colors, and styles for the QueueLess feature.
 - `src/components/`, `src/hooks/`, and `src/constants/` hold app-wide reusable components, hooks, and theme constants.
 
+## Presentation questions and facts
+
+For a quick app summary, likely demo questions, and presentation-ready talking points, see [APP-FAQ-AND-FACTS.md](./APP-FAQ-AND-FACTS.md).
+
 ## Get started
 
 1. Install dependencies
@@ -24,6 +28,48 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    ```bash
    npx expo start
    ```
+
+## Quality checks
+
+Run these checks before changes are merged or shipped:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npx expo-doctor
+```
+
+`npm test` exercises the appointment calendar and time-slot utilities. Exporting
+the app for iOS and Android checks JavaScript bundling, but does not replace
+installing and testing the app on real devices or simulators.
+
+## Device builds and releases
+
+The permanent iOS bundle ID and Android application ID are both set to
+`com.driel16.queueless` in `app.json`. Do not change them after publishing the
+app. Link the project to the Expo account that owns this application:
+
+```bash
+npx eas-cli@latest init
+```
+
+Set the Firebase `EXPO_PUBLIC_` configuration values in the selected EAS
+environment as well as local `.env` for local development. Those client
+configuration values are bundled into the app and must not contain server
+credentials.
+
+The `eas.json` profiles support development builds, Android-installable
+preview APKs, and production store builds:
+
+```bash
+npx eas-cli@latest build --profile development --platform all
+npx eas-cli@latest build --profile preview --platform all
+npx eas-cli@latest build --profile production --platform all
+```
+
+Store signing credentials, store accounts, and testing on actual iOS and
+Android devices are separate release steps; bundling alone does not verify them.
 
 In the output, you'll find options to open the app in a
 

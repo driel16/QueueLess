@@ -108,7 +108,14 @@ export default function LoginScreen() {
             secure
             placeholder="Enter your password"
           />
-          <Text style={styles.linkText}>Use your student portal password</Text>
+          <Pressable
+            style={styles.forgotPasswordLink}
+            onPress={() =>
+              router.push({ pathname: '/forgot-password', params: { email, role: 'student' } })
+            }
+            accessibilityRole="link">
+            <Text style={styles.linkText}>Forgot password?</Text>
+          </Pressable>
           {verificationNotice ? <Text style={styles.cardSubtle}>{verificationNotice}</Text> : null}
         </View>
         <View style={styles.loginActions}>
@@ -142,8 +149,8 @@ export default function LoginScreen() {
           </Pressable>
           <Pressable
             style={styles.roleSwitchButton}
-            onPress={() => router.replace('/')}>
-            <Text style={styles.roleSwitchText}>Not a student? Choose another account type</Text>
+            onPress={() => router.replace('/choose-role')}>
+            <Text style={styles.roleSwitchText}>Choose another account type</Text>
           </Pressable>
         </View>
       </ScrollView>

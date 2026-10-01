@@ -1,62 +1,73 @@
 import { router } from 'expo-router';
-import { ArrowRight, BriefcaseBusiness, GraduationCap } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, Text, View } from 'react-native';
+import { ArrowRight, BriefcaseBusiness, Settings } from 'lucide-react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { palette } from '../../palette';
 import { styles } from '../../styles';
 
 export default function SplashScreen() {
   return (
-    <SafeAreaView style={styles.splash}>
+    <SafeAreaView style={[styles.splash, styles.splashLanding]}>
       <StatusBar style="light" />
-      <View style={styles.splashCenter}>
-        <View style={styles.splashLogo}>
-          <BriefcaseBusiness size={50} color="#FFFFFF" strokeWidth={1.5} />
+      <ScrollView
+        style={styles.splashScroll}
+        contentContainerStyle={styles.splashLandingScrollContent}
+        showsVerticalScrollIndicator={false}>
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={styles.splashGradient}>
+          <Defs>
+            <LinearGradient id="splashBackground" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#244B98" />
+              <Stop offset="100%" stopColor="#112653" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100" height="100" fill="url(#splashBackground)" />
+          <Circle cx="96" cy="6" r="27" fill="#6FE0CE" opacity="0.08" />
+          <Circle cx="3" cy="95" r="34" fill="#729CF0" opacity="0.08" />
+        </Svg>
+        <View style={styles.splashTopBar}>
+          <View style={styles.splashEyebrow}>
+            <View style={styles.splashEyebrowDot} />
+            <Text style={styles.splashEyebrowText}>CAMPUS SERVICES</Text>
+          </View>
+          <View style={styles.splashSettingsButton} accessible={false}>
+            <Settings size={19} color="#DCE8FF" strokeWidth={1.8} />
+          </View>
         </View>
-        <Text style={styles.brand}>QueueLess</Text>
-        <Text style={styles.tagline}>Skip the line. Book your spot.</Text>
-        <View style={styles.rolePrompt}>
-          <Text style={styles.rolePromptTitle}>How will you use QueueLess?</Text>
-          <Text style={styles.rolePromptSubtitle}>Choose your account type to continue.</Text>
+        <View style={styles.splashCenter}>
+          <View style={styles.splashHero}>
+            <View style={styles.splashLogo}>
+              <BriefcaseBusiness size={38} color="#FFFFFF" strokeWidth={1.7} />
+            </View>
+            <Text style={styles.brand}>QueueLess</Text>
+            <Text style={styles.tagline}>Your time matters.</Text>
+          </View>
+          <Pressable
+            style={styles.splashStartButton}
+            onPress={() => router.push('/choose-role')}
+            accessibilityRole="button"
+            accessibilityLabel="Get started">
+            <View style={styles.splashStartButtonCopy}>
+              <Text style={styles.splashStartButtonEyebrow}>YOUR CAMPUS, MADE EASIER</Text>
+              <Text style={styles.splashStartButtonTitle}>Get started</Text>
+              <Text style={styles.splashStartButtonSubtitle}>Choose how you want to continue</Text>
+            </View>
+            <View style={styles.splashStartButtonArrow}>
+              <ArrowRight size={21} color="#0B716E" strokeWidth={2.4} />
+            </View>
+          </Pressable>
         </View>
-        <Pressable
-          style={[styles.roleCard, styles.roleCardStudent]}
-          onPress={() => router.push('/login')}
-          accessibilityRole="button"
-          accessibilityLabel="Continue as a student">
-          <View style={[styles.roleIcon, styles.roleIconOnSplash]}>
-            <GraduationCap size={22} color={palette.splashBlue} />
-          </View>
-          <View style={styles.roleCardCopy}>
-            <Text style={[styles.roleCardTitle, styles.roleCardTitleStudent]}>I’m a student</Text>
-            <Text style={[styles.roleCardSubtitle, styles.roleCardSubtitleStudent]}>
-              Book and manage your visits
-            </Text>
-          </View>
-          <ArrowRight size={20} color={palette.splashBlue} />
-        </Pressable>
-        <Pressable
-          style={styles.roleCard}
-          onPress={() => router.push('/staff-login')}
-          accessibilityRole="button"
-          accessibilityLabel="Continue as staff">
-          <View style={[styles.roleIcon, styles.roleIconStaffOnSplash]}>
-            <BriefcaseBusiness size={20} color="#FFFFFF" />
-          </View>
-          <View style={styles.roleCardCopy}>
-            <Text style={[styles.roleCardTitle, styles.roleCardTitleStaff]}>I’m staff</Text>
-            <Text style={[styles.roleCardSubtitle, styles.roleCardSubtitleStaff]}>
-              Manage requests and the queue
-            </Text>
-          </View>
-          <ArrowRight size={20} color="#FFFFFF" />
-        </Pressable>
-      </View>
-      <View style={styles.splashFooter}>
-        <Text style={styles.footerText}>Campus Cashier Virtual Queue System</Text>
-      </View>
+        <View style={styles.splashFooter}>
+          <View style={styles.splashFooterRule} />
+          <Text style={styles.splashFooterText}>Campus Cashier Virtual Queue System</Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

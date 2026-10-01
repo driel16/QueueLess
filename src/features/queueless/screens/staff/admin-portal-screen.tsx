@@ -176,6 +176,14 @@ export default function AdminPortalScreen() {
               placeholder="Enter your password"
             />
             <Pressable
+              style={styles.forgotPasswordLink}
+              onPress={() =>
+                router.push({ pathname: '/forgot-password', params: { email, role: 'admin' } })
+              }
+              accessibilityRole="link">
+              <Text style={styles.linkText}>Forgot password?</Text>
+            </Pressable>
+            <Pressable
               style={styles.primaryButton}
               disabled={isLoading}
               accessibilityRole="button"

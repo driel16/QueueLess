@@ -5,36 +5,18 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { AppScreen, EmptyState, ErrorBanner, Header } from '../../components';
 import { services } from '../../data';
 import {
+  createTimeSlots,
   defaultOperatingHours,
   formatLocalDate,
   getCalendarDates,
   getOperatingHours,
   getServiceAvailability,
-  parseTimeToMinutes,
   type OperatingHours,
 } from '../../settings';
 import { palette } from '../../palette';
 import { styles } from '../../styles';
 
 const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-function createTimeSlots(hours: OperatingHours, date?: string) {
-  const openAt = parseTimeToMinutes(hours.openTime);
-  const closeAt = parseTimeToMinutes(hours.closeTime);
-  if (openAt === undefined || closeAt === undefined || openAt >= closeAt) return [];
-
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const earliestSlot = date === formatLocalDate(now) ? currentMinutes + 1 : 0;
-  const slots: string[] = [];
-  for (let minute = openAt; minute + hours.slotMinutes <= closeAt; minute += hours.slotMinutes) {
-    if (minute < earliestSlot) continue;
-    const hour = String(Math.floor(minute / 60)).padStart(2, '0');
-    const minutes = String(minute % 60).padStart(2, '0');
-    slots.push(`${hour}:${minutes}`);
-  }
-  return slots;
-}
 
 export default function ScheduleScreen() {
   const { serviceTitle } = useLocalSearchParams<{ serviceTitle?: string }>();
