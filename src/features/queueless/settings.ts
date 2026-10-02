@@ -11,6 +11,7 @@ export {
   formatTimeForDisplay,
   formatLocalDate,
   getCalendarDates,
+  isOperatingDateAvailable,
   parseTimeFromDisplay,
   parseTimeToMinutes,
 } from './schedule-utils';

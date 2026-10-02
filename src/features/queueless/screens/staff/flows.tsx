@@ -755,6 +755,7 @@ export function ActiveQueueScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
   const serving = todayRequests.find((request) => request.status === 'serving');
   const waiting = todayRequests.filter((request) => request.status === 'approved');
+  const checkedInWaiting = waiting.filter((request) => request.arrivedAt);
   const skipped = todayRequests.filter((request) => request.status === 'skipped');
   const nextUpcoming = requests
     .filter((request) => request.date > today && request.status === 'approved')
@@ -811,7 +812,7 @@ export function ActiveQueueScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 style={[styles.primaryButton, { flex: 1 }]}
-                disabled={isUpdating || waiting.length === 0 || Boolean(serving)}
+                disabled={isUpdating || checkedInWaiting.length === 0 || Boolean(serving)}
                 onPress={() => void runQueueAction(() => callNextAppointment(today))}>
                 {isUpdating ? (
                   <ActivityIndicator color="#FFFFFF" />
@@ -842,10 +843,20 @@ export function ActiveQueueScreen() {
                   ? `No approved queue requests are scheduled for today. The next queue date is ${nextUpcoming.date}.`
                   : 'No approved queue requests are scheduled for today. Call Next is available when a student is approved for today.'}
               </Text>
-            ) : waiting.some((request) => request.arrivedAt) ? (
+            ) : checkedInWaiting.length ? (
               <Text style={styles.queueActionHint}>
-                A student is checked in. Tap Call Next to start serving the next appointment; the
+                {checkedInWaiting.length === 1
+                  ? 'One student is checked in.'
+                  : `${checkedInWaiting.length} students are checked in.`}{' '}
+                Tap Call Next to start serving the next student; the
                 transaction confirmation controls will then appear on both sides.
+              </Text>
+            ) : waiting.length ? (
+              <Text style={styles.queueActionHint}>
+                {waiting.length === 1
+                  ? 'One student is approved but has not checked in yet.'
+                  : `${waiting.length} students are approved but have not checked in yet.`}{' '}
+                Scan a student’s QR code to check them in before calling the next student.
               </Text>
             ) : null}
             {serving && !serving.cashierFinishedAt ? (

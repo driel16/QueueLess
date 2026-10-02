@@ -21,6 +21,25 @@ export function formatLocalDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+export function isOperatingDateAvailable(
+  date: string,
+  hours: OperatingHours,
+  today = formatLocalDate(new Date()),
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const parsed = new Date(`${date}T12:00:00`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    formatLocalDate(parsed) !== date ||
+    date < today ||
+    !hours.enabledWeekdays.includes(parsed.getDay()) ||
+    hours.closedDates.includes(date)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function getCalendarDates(month: Date) {
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
   const gridStart = new Date(firstDay);

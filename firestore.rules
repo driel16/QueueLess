@@ -301,6 +301,7 @@ service cloud.firestore {
         && request.resource.data['service'] is string
         && request.resource.data['service'].size() > 0
         && request.resource.data['date'] is string
+        && request.resource.data['date'].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data['status'] == 'pending'
         && request.resource.data['createdAt'] == request.time
         && validAppointmentCapacityForCreate(appointmentId);
@@ -357,6 +358,24 @@ service cloud.firestore {
           )
           || (
             resource.data['status'] == 'approved'
+            && request.resource.data['status'] == 'approved'
+            && request.resource.data.get('nextAt', null) == null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nextAt'])
+          )
+          || (
+            resource.data['status'] in ['approved', 'serving']
+            && request.resource.data['status'] == resource.data['status']
+            && request.resource.data['studentsAhead'] is int
+            && request.resource.data['studentsAhead'] >= 0
+            && request.resource.data['estimatedWaitMinutes'] is int
+            && request.resource.data['estimatedWaitMinutes'] >= 0
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'studentsAhead',
+              'estimatedWaitMinutes'
+            ])
+          )
+          || (
+            resource.data['status'] == 'approved'
             && !resource.data.keys().hasAny(['arrivedAt'])
             && request.resource.data['status'] == 'approved'
             && request.resource.data['arrivedAt'] == request.time
@@ -364,12 +383,15 @@ service cloud.firestore {
           )
           || (
             resource.data['status'] == 'approved'
+            && resource.data.keys().hasAny(['arrivedAt'])
             && request.resource.data['status'] == 'serving'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'status',
-              'calledAt'
+              'calledAt',
+              'nextAt'
             ])
             && request.resource.data['calledAt'] == request.time
+            && request.resource.data.get('nextAt', null) == null
           )
           || (
             resource.data['status'] == 'serving'

@@ -10,6 +10,7 @@ import {
   getCalendarDates,
   getOperatingHours,
   getServiceAvailability,
+  isOperatingDateAvailable,
   type OperatingHours,
 } from '../../settings';
 import { palette } from '../../palette';
@@ -53,10 +54,8 @@ export default function ScheduleScreen() {
   function isDateAvailable(date: Date) {
     const dateKey = formatLocalDate(date);
     return (
-      dateKey >= today &&
       date.getMonth() === month.getMonth() &&
-      hours.enabledWeekdays.includes(date.getDay()) &&
-      !hours.closedDates.includes(dateKey)
+      isOperatingDateAvailable(dateKey, hours, today)
     );
   }
 

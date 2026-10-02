@@ -10,11 +10,13 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 
 import { getCurrentStudentProfile } from './auth';
-import { formatLocalDate } from './schedule-utils';
+import { getCallNextCandidates, getQueueEstimateOrder } from './queue-utils';
+import { formatLocalDate, isOperatingDateAvailable } from './schedule-utils';
 import { getOperatingHours } from './settings';
 import { getFirebaseAuth, getFirebaseFirestore } from '@/lib/firebase';
 
@@ -108,6 +110,11 @@ export async function submitAppointmentRequest({
   const profile = await getCurrentStudentProfile();
   if (!profile || !profile.emailVerified) {
     throw new Error('Sign in with your verified student account before requesting an appointment.');
+  }
+
+  const operatingHours = await getOperatingHours();
+  if (!isOperatingDateAvailable(date, operatingHours)) {
+    throw new Error('That date is not available for the cashier queue. Please choose an open date.');
   }
 
   const db = getFirebaseFirestore();
@@ -320,45 +327,60 @@ export async function callNextAppointment(date = formatLocalDate(new Date())) {
   const appointments = await getDocs(
     query(collection(db, 'appointments'), where('date', '==', date)),
   );
-  const candidates = appointments.docs
-    .filter((item) => item.data().status === 'approved')
-    .map((item) => toAppointmentRequest(item.id, item.data()))
-    .sort(
-      (first, second) =>
-        (first.queueNumber ?? Number.MAX_SAFE_INTEGER) -
-          (second.queueNumber ?? Number.MAX_SAFE_INTEGER) ||
-        (first.createdAt?.getTime() ?? 0) - (second.createdAt?.getTime() ?? 0) ||
-        first.id.localeCompare(second.id),
-    );
+  const dateRequests = appointments.docs.map((item) =>
+    toAppointmentRequest(item.id, item.data()),
+  );
+  const candidates = getCallNextCandidates(dateRequests);
   const next = candidates[0];
-  if (!next) {
-    throw new Error('There are no approved appointments scheduled for today.');
-  }
+  if (!next) throw new Error('There are no approved appointments scheduled for today.');
 
-  const appointmentRef = doc(db, 'appointments', next.id);
   const queueRef = doc(db, 'appointmentQueues', date);
-  const nextInLineRef = candidates[1]
-    ? doc(db, 'appointments', candidates[1].id)
-    : undefined;
-  const slotMinutes = nextInLineRef ? (await getOperatingHours()).slotMinutes : undefined;
+  const slotMinutes = (await getOperatingHours()).slotMinutes;
   await runTransaction(db, async (transaction) => {
-    const reads = [
+    const appointmentRef = doc(db, 'appointments', next.id);
+    const nextInLine = candidates[1];
+    const nextInLineRef = nextInLine ? doc(db, 'appointments', nextInLine.id) : undefined;
+    const staleNextRefs = dateRequests
+      .filter(
+        (item) =>
+          item.status === 'approved' &&
+          item.nextAt &&
+          item.id !== next.id &&
+          item.id !== nextInLine?.id,
+      )
+      .slice(0, 450)
+      .map((item) => doc(db, 'appointments', item.id));
+    const [appointment, queue, nextInLineSnapshot] = await Promise.all([
       transaction.get(appointmentRef),
       transaction.get(queueRef),
-      ...(nextInLineRef ? [transaction.get(nextInLineRef)] : []),
-    ];
-    const [appointment, queue, nextInLine] = await Promise.all(reads);
+      nextInLineRef ? transaction.get(nextInLineRef) : Promise.resolve(undefined),
+    ]);
+    const staleSnapshots = await Promise.all(
+      staleNextRefs.map((reference) => transaction.get(reference)),
+    );
     if (!appointment.exists() || appointment.data().status !== 'approved') {
       throw new Error('The next appointment has changed. Refresh the queue and try again.');
+    }
+    if (!appointment.data().arrivedAt) {
+      throw new Error('The next student has not checked in yet.');
     }
     if (queue.data()?.nowServingId) {
       throw new Error('Another appointment is already being served.');
     }
-    if (nextInLineRef && (!nextInLine?.exists() || nextInLine.data().status !== 'approved')) {
+    if (
+      nextInLineRef &&
+      (!nextInLineSnapshot?.exists() ||
+        nextInLineSnapshot.data().status !== 'approved' ||
+        !nextInLineSnapshot.data().arrivedAt)
+    ) {
       throw new Error('The queue order changed. Refresh and call the next student again.');
     }
 
-    transaction.update(appointmentRef, { status: 'serving', calledAt: serverTimestamp() });
+    transaction.update(appointmentRef, {
+      status: 'serving',
+      calledAt: serverTimestamp(),
+      ...(appointment.data().nextAt ? { nextAt: null } : {}),
+    });
     transaction.set(
       queueRef,
       {
@@ -368,14 +390,70 @@ export async function callNextAppointment(date = formatLocalDate(new Date())) {
       },
       { merge: true },
     );
-    if (nextInLineRef) {
+    staleSnapshots.forEach((snapshot) => {
+      if (
+        snapshot?.exists() &&
+        snapshot.data().status === 'approved' &&
+        snapshot.data().nextAt
+      ) {
+        transaction.update(snapshot.ref, { nextAt: null });
+      }
+    });
+    if (nextInLine && nextInLineRef) {
+      const hasNextMarker =
+        nextInLineSnapshot?.exists() && Boolean(nextInLineSnapshot.data().nextAt);
       transaction.update(nextInLineRef, {
-        nextAt: serverTimestamp(),
+        ...(!hasNextMarker ? { nextAt: serverTimestamp() } : {}),
         studentsAhead: 1,
         estimatedWaitMinutes: slotMinutes,
       });
     }
   });
+}
+
+export async function refreshQueueEstimates(requests: AppointmentRequest[]) {
+  const activeByDate = new Map<string, AppointmentRequest[]>();
+  requests
+    .filter((request) => request.status === 'approved' || request.status === 'serving')
+    .forEach((request) => {
+      const active = activeByDate.get(request.date) ?? [];
+      active.push(request);
+      activeByDate.set(request.date, active);
+    });
+  if (!activeByDate.size) return;
+
+  const { slotMinutes } = await getOperatingHours();
+  const db = getFirebaseFirestore();
+  const updates = Array.from(activeByDate.values()).flatMap((active) => {
+    const ordered = getQueueEstimateOrder(active);
+
+    return ordered.flatMap((request, index) => {
+      const studentsAhead = request.status === 'serving' ? 0 : index;
+      const estimatedWaitMinutes = studentsAhead * slotMinutes;
+      if (
+        request.studentsAhead === studentsAhead &&
+        request.estimatedWaitMinutes === estimatedWaitMinutes
+      ) {
+        return [];
+      }
+      return [{
+        ref: doc(db, 'appointments', request.id),
+        studentsAhead,
+        estimatedWaitMinutes,
+      }];
+    });
+  });
+
+  for (let start = 0; start < updates.length; start += 450) {
+    const batch = writeBatch(db);
+    updates.slice(start, start + 450).forEach((update) => {
+      batch.update(update.ref, {
+        studentsAhead: update.studentsAhead,
+        estimatedWaitMinutes: update.estimatedWaitMinutes,
+      });
+    });
+    await batch.commit();
+  }
 }
 
 export async function finishAppointment(requestId: string) {

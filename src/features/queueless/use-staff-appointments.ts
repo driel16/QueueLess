@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  refreshQueueEstimates,
   reviewAppointmentRequest,
   subscribeToAppointmentRequests,
   type AppointmentRequest,
@@ -14,11 +15,35 @@ export function useStaffAppointments() {
   useEffect(() => {
     let isMounted = true;
     const repairingIds = new Set<string>();
+    let previousQueueState = '';
     const unsubscribe = subscribeToAppointmentRequests(
       (items) => {
         setRequests(items);
         setIsLoading(false);
         setError(undefined);
+        const queueState = items
+          .filter(
+            (item) =>
+              item.status === 'approved' ||
+              item.status === 'serving' ||
+              item.status === 'skipped',
+          )
+          .map((item) => `${item.id}:${item.date}:${item.status}:${item.queueNumber ?? ''}`)
+          .sort()
+          .join('|');
+        if (queueState !== previousQueueState) {
+          previousQueueState = queueState;
+          refreshQueueEstimates(items).catch((refreshError: unknown) => {
+            if (isMounted) {
+              previousQueueState = '';
+              setError(
+                refreshError instanceof Error
+                  ? refreshError.message
+                  : 'Could not refresh queue wait estimates.',
+              );
+            }
+          });
+        }
         items
           .filter(
             (item) =>

@@ -5,6 +5,7 @@ import {
   formatLocalDate,
   formatTimeForDisplay,
   getCalendarDates,
+  isOperatingDateAvailable,
   parseTimeFromDisplay,
   parseTimeToMinutes,
 } from '../schedule-utils';
@@ -32,6 +33,22 @@ describe('getCalendarDates', () => {
     expect(dates[0]).toEqual(new Date(2024, 0, 28));
     expect(dates[0].getDay()).toBe(0);
     expect(dates.some((date) => date.getFullYear() === 2024 && date.getMonth() === 1 && date.getDate() === 29)).toBe(true);
+  });
+});
+
+describe('isOperatingDateAvailable', () => {
+  it('allows future enabled weekdays and rejects past, closed, invalid, or disabled dates', () => {
+    const hours: OperatingHours = {
+      ...officeHours,
+      enabledWeekdays: [1, 2, 3, 4, 5],
+      closedDates: ['2026-10-05'],
+    };
+
+    expect(isOperatingDateAvailable('2026-10-02', hours, '2026-10-01')).toBe(true);
+    expect(isOperatingDateAvailable('2026-09-30', hours, '2026-10-01')).toBe(false);
+    expect(isOperatingDateAvailable('2026-10-03', hours, '2026-10-01')).toBe(false);
+    expect(isOperatingDateAvailable('2026-10-05', hours, '2026-10-01')).toBe(false);
+    expect(isOperatingDateAvailable('2026-02-30', hours, '2026-01-01')).toBe(false);
   });
 });
 
