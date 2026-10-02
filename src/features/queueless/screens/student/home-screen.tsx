@@ -57,7 +57,12 @@ export default function HomeScreen() {
       .map((part) => part[0]?.toUpperCase())
       .join('') || 'Q';
   const upcomingAppointments = appointments
-    .filter((appointment) => appointment.status !== 'rejected' && appointment.status !== 'completed')
+    .filter(
+      (appointment) =>
+        appointment.status !== 'rejected' &&
+        appointment.status !== 'completed' &&
+        appointment.status !== 'cancelled',
+    )
     .sort(
       (first, second) =>
         first.date.localeCompare(second.date) ||
@@ -136,7 +141,7 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Recent Activity</Text>
         {appointments
           .filter((appointment) =>
-            ['completed', 'rejected', 'skipped'].includes(appointment.status),
+            ['completed', 'rejected', 'skipped', 'cancelled'].includes(appointment.status),
           )
           .slice(0, 3)
           .map((appointment) => (
@@ -149,7 +154,7 @@ export default function HomeScreen() {
           ))}
         {!appointmentsLoading &&
         !appointments.some((appointment) =>
-          ['completed', 'rejected', 'skipped'].includes(appointment.status),
+          ['completed', 'rejected', 'skipped', 'cancelled'].includes(appointment.status),
         ) ? (
           <EmptyState title="No activity yet" message="Your completed appointments will appear here." />
         ) : null}

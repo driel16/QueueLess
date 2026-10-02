@@ -8,6 +8,7 @@ import {
   EmptyState,
   ErrorBanner,
   Header,
+  QueueProgress,
 } from '../../components';
 import { styles } from '../../styles';
 import { useStudentAppointments } from '../../use-student-appointments';
@@ -26,7 +27,11 @@ export default function QueueScreen() {
   return (
     <AppScreen current="queue">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header title="My Queue" subtitle="Live ticket status" backTo="/home" />
+        <Header
+          title="My Queue & Ticket"
+          subtitle="Live queue status and your appointment QR code"
+          backTo="/home"
+        />
         {error ? <ErrorBanner message={error} /> : null}
         {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
         {approvedRequests.length ? (
@@ -43,10 +48,20 @@ export default function QueueScreen() {
             </View>
           ))
         ) : !isLoading && pendingRequests.length ? (
-          <EmptyState
-            title="Waiting for approval"
-            message="Your appointment was received. Queue number and estimated time will show here after the cashier approves it."
-          />
+          pendingRequests.map((request) => (
+            <View key={request.id} style={styles.appointmentStatusCard}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.itemTitle}>{request.service}</Text>
+                <Text style={styles.itemSubtle}>Pending</Text>
+              </View>
+              <Text style={styles.itemSubtle}>{request.date}</Text>
+              <QueueProgress step={0} />
+              <Text style={styles.queueActionHint}>
+                Request received. The cashier must approve it before your queue number and QR ticket
+                are ready.
+              </Text>
+            </View>
+          ))
         ) : !isLoading && !error ? (
           <EmptyState
             title="You’re not in a queue"
@@ -54,9 +69,6 @@ export default function QueueScreen() {
           />
         ) : null}
         <View style={styles.buttonStack}>
-          <Pressable style={styles.primaryButton} onPress={() => router.push('/appointment-ticket')}>
-            <Text style={styles.primaryButtonText}>Continue to My Ticket</Text>
-          </Pressable>
           <Pressable style={styles.secondaryButton} onPress={() => router.replace('/home')}>
             <Text style={styles.secondaryButtonText}>Back to Home</Text>
           </Pressable>

@@ -1,7 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { AppointmentRequest } from '../appointment-requests';
-import { getCallNextCandidates, getQueueEstimateOrder } from '../queue-utils';
+import {
+  getCallNextCandidates,
+  getQueueEstimateOrder,
+  isActiveAppointmentStatus,
+} from '../queue-utils';
 
 function request(
   id: string,
@@ -51,4 +55,20 @@ describe('getQueueEstimateOrder', () => {
       'approved-last-ticket',
     ]);
   });
+});
+
+describe('isActiveAppointmentStatus', () => {
+  it.each(['pending', 'approved', 'serving', 'skipped'] as const)(
+    'treats %s appointments as active',
+    (status) => {
+      expect(isActiveAppointmentStatus(status)).toBe(true);
+    },
+  );
+
+  it.each(['completed', 'cancelled', 'rejected'] as const)(
+    'treats %s appointments as inactive',
+    (status) => {
+      expect(isActiveAppointmentStatus(status)).toBe(false);
+    },
+  );
 });

@@ -1,1 +1,5 @@
-export { AppointmentTicketScreen as default } from './flows';
+import { Redirect } from 'expo-router';
+
+export default function AppointmentTicketScreen() {
+  return <Redirect href="/queue" />;
+}

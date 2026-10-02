@@ -19,11 +19,24 @@ import { styles } from '../../styles';
 const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function ScheduleScreen() {
-  const { serviceTitle } = useLocalSearchParams<{ serviceTitle?: string }>();
+  const { originalDate, requestId, serviceTitle } = useLocalSearchParams<{
+    originalDate?: string;
+    requestId?: string;
+    serviceTitle?: string;
+  }>();
   const service = services.find((item) => item.title === serviceTitle);
   const [hours, setHours] = useState<OperatingHours>(defaultOperatingHours);
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [month, setMonth] = useState(() => {
+    if (requestId && originalDate && /^\d{4}-\d{2}-\d{2}$/.test(originalDate)) {
+      const original = new Date(`${originalDate}T12:00:00`);
+      if (!Number.isNaN(original.getTime())) {
+        return new Date(original.getFullYear(), original.getMonth(), 1);
+      }
+    }
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [selectedDate, setSelectedDate] = useState<string>();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -55,7 +68,8 @@ export default function ScheduleScreen() {
     const dateKey = formatLocalDate(date);
     return (
       date.getMonth() === month.getMonth() &&
-      isOperatingDateAvailable(dateKey, hours, today)
+      isOperatingDateAvailable(dateKey, hours, today) &&
+      (!requestId || (dateKey > today && dateKey !== originalDate))
     );
   }
 
@@ -63,9 +77,13 @@ export default function ScheduleScreen() {
     <AppScreen current="schedule">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header
-          title="Join the Queue"
-          subtitle={service ? `${service.title} · Main Cashier` : 'Choose a service first'}
-          backTo="/services"
+          title={requestId ? 'Reschedule Appointment' : 'Join the Queue'}
+          subtitle={
+            service
+              ? `${service.title} · Main Cashier`
+              : 'Choose a service first'
+          }
+          backTo={requestId ? '/my-appointments' : '/services'}
         />
         {error ? <ErrorBanner message={error} /> : null}
         {!service ? (
@@ -155,9 +173,15 @@ export default function ScheduleScreen() {
                   onPress={() =>
                     router.push({
                       pathname: '/appointment-request',
-                      params: { serviceTitle: service.title, date: selectedDate },
+                      params: {
+                        serviceTitle: service.title,
+                        date: selectedDate,
+                        ...(requestId ? { requestId } : {}),
+                      },
                     })}>
-                  <Text style={styles.primaryButtonText}>Continue with selected date</Text>
+                  <Text style={styles.primaryButtonText}>
+                    {requestId ? 'Review new appointment date' : 'Continue with selected date'}
+                  </Text>
                 </Pressable>
               </View>
             ) : null}

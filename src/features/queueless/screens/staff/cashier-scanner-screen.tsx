@@ -12,6 +12,23 @@ export default function CashierScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string>();
   const [hasScanned, setHasScanned] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+
+  const enableCamera = async () => {
+    setScanError(undefined);
+    try {
+      const result = permission?.granted ? permission : await requestPermission();
+      if (result.granted) {
+        setCameraEnabled(true);
+      } else if (!result.canAskAgain) {
+        setScanError('Camera access is blocked. Enable it in your device settings to scan QR codes.');
+      }
+    } catch (error) {
+      setScanError(
+        error instanceof Error ? error.message : 'Could not request camera access. Try again.',
+      );
+    }
+  };
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     if (hasScanned) return;
@@ -38,17 +55,22 @@ export default function CashierScannerScreen() {
         {scanError ? <ErrorBanner message={scanError} /> : null}
         {!permission ? (
           <ActivityIndicator color={palette.greenDark} />
-        ) : !permission.granted ? (
+        ) : !cameraEnabled ? (
           <View style={styles.scannerPermissionCard}>
-            <Text style={styles.itemTitle}>Camera access required</Text>
+            <Text style={styles.itemTitle}>
+              {permission.granted ? 'Ready to scan?' : 'Camera access required'}
+            </Text>
             <Text style={styles.itemSubtle}>
-              Allow camera access to scan a student’s appointment ticket.
+              Camera access is used to scan a student’s appointment ticket. The camera will only
+              open after you continue.
             </Text>
             <Pressable
               style={styles.primaryButton}
               accessibilityRole="button"
-              onPress={() => void requestPermission()}>
-              <Text style={styles.primaryButtonText}>Allow Camera</Text>
+              onPress={() => void enableCamera()}>
+              <Text style={styles.primaryButtonText}>
+                {permission.granted ? 'Continue to Camera' : 'Allow Camera'}
+              </Text>
             </Pressable>
           </View>
         ) : (

@@ -15,6 +15,10 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 For a quick app summary, likely demo questions, and presentation-ready talking points, see [APP-FAQ-AND-FACTS.md](./APP-FAQ-AND-FACTS.md).
 
+## Developer documentation
+
+Download the [QueueLess Developer Guide (DOCX)](./docs/DEVELOPER-GUIDE.docx), or read the [Markdown source](./docs/DEVELOPER-GUIDE.md), for the architecture, student/staff workflows, Firestore model, and QR ticket scan/check-in flow.
+
 ## Get started
 
 1. Install dependencies

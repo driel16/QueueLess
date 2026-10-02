@@ -20,6 +20,8 @@ import {
   resendVerificationEmail,
 } from '../../auth';
 import {
+  cancelAppointmentRequest,
+  rescheduleAppointmentRequest,
   submitAppointmentRequest,
 } from '../../appointment-requests';
 import { formatLocalDate } from '../../schedule-utils';
@@ -259,8 +261,9 @@ export function ServiceDetailsScreen() {
 }
 
 export function AppointmentRequestScreen() {
-  const { date, serviceTitle } = useLocalSearchParams<{
+  const { date, requestId, serviceTitle } = useLocalSearchParams<{
     date?: string;
+    requestId?: string;
     serviceTitle?: string;
   }>();
   const service = services.find((item) => item.title === serviceTitle);
@@ -277,7 +280,15 @@ export function AppointmentRequestScreen() {
   return (
     <AppScreen current="schedule">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header title="Queue Request" subtitle="Review your queue date before submitting" backTo="/schedule" />
+        <Header
+          title={requestId ? 'Reschedule Appointment' : 'Queue Request'}
+          subtitle={
+            requestId
+              ? 'Review your new appointment date before confirming'
+              : 'Review your queue date before submitting'
+          }
+          backTo={requestId ? '/my-appointments' : '/schedule'}
+        />
         {!service || !dateIsValid ? (
           <ErrorBanner message="Choose a service and date before submitting this queue request." />
         ) : null}
@@ -314,10 +325,9 @@ export function AppointmentRequestScreen() {
             setSubmissionError(undefined);
             setIsSubmitting(true);
             try {
-              const ticket = await submitAppointmentRequest({
-                service: service.title,
-                date: String(date),
-              });
+              const ticket = requestId
+                ? await rescheduleAppointmentRequest(requestId, String(date))
+                : await submitAppointmentRequest({ service: service.title, date: String(date) });
 
               router.push({ pathname: '/appointment-confirmation', params: { ticket } });
             } catch (error) {
@@ -333,7 +343,9 @@ export function AppointmentRequestScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.primaryButtonText}>Submit Request</Text>
+            <Text style={styles.primaryButtonText}>
+              {requestId ? 'Confirm Reschedule' : 'Submit Request'}
+            </Text>
           )}
         </Pressable>
       </ScrollView>
@@ -456,47 +468,19 @@ export function AppointmentStatusScreen() {
   );
 }
 
-export function AppointmentTicketScreen() {
-  const { requests, isLoading, error } = useStudentAppointments();
-  const request = requests.find(
-    (item) => item.status === 'approved' || item.status === 'serving',
-  );
-
-  return (
-    <AppScreen current="queue">
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header title="Virtual Ticket" subtitle="Digital appointment receipt" backTo="/appointment-status" />
-        {error ? <ErrorBanner message={error} /> : null}
-        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
-        {request ? (
-          <>
-            <AppointmentQueueSummary request={request} />
-            <AppointmentQrTicket request={request} />
-          </>
-        ) : !isLoading && !error ? (
-          <EmptyState title="No ticket yet" message="A queue ticket will appear here after an appointment is approved." />
-        ) : null}
-        <View style={styles.buttonStack}>
-          <Pressable style={styles.primaryButton} onPress={() => router.push('/queue')}>
-            <Text style={styles.primaryButtonText}>Continue to Queue</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => router.replace('/home')}>
-            <Text style={styles.secondaryButtonText}>Back to Home</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </AppScreen>
-  );
-}
-
 export function MyAppointmentsScreen() {
   const { requests, isLoading, error } = useStudentAppointments();
+  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
+  const [processingId, setProcessingId] = useState<string>();
+  const [actionError, setActionError] = useState<string>();
+  const today = formatLocalDate(new Date());
 
   return (
     <AppScreen current="queue">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="My Queue Requests" subtitle="Upcoming and recent requests" backTo="/home" />
         {error ? <ErrorBanner message={error} /> : null}
+        {actionError ? <ErrorBanner message={actionError} /> : null}
         {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
         {requests.map((request) => (
           <View key={request.id} style={styles.appointmentStatusCard}>
@@ -504,13 +488,7 @@ export function MyAppointmentsScreen() {
               <Text style={styles.itemTitle}>{request.service}</Text>
               <Badge
                 label={request.status[0].toUpperCase() + request.status.slice(1)}
-                tone={
-                  request.status === 'approved' ||
-                  request.status === 'serving' ||
-                  request.status === 'completed'
-                    ? 'green'
-                    : 'warm'
-                }
+                tone={['approved', 'serving', 'completed'].includes(request.status) ? 'green' : 'warm'}
               />
             </View>
             <Text style={styles.itemSubtle}>Appointment ID: {request.id}</Text>
@@ -520,6 +498,79 @@ export function MyAppointmentsScreen() {
                 <AppointmentQueueSummary request={request} />
                 <AppointmentQrTicket request={request} />
               </>
+            ) : null}
+            {['pending', 'approved'].includes(request.status) &&
+            request.date > today &&
+            !request.arrivedAt ? (
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.secondaryButton, { flex: 1 }]}
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push({
+                      pathname: '/schedule',
+                      params: {
+                        serviceTitle: request.service,
+                        requestId: request.id,
+                        originalDate: request.date,
+                      },
+                    })
+                  }>
+                  <Text style={styles.secondaryButtonText}>Reschedule</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.secondaryButton, { flex: 1 }]}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setActionError(undefined);
+                    setCancelConfirmationId(request.id);
+                  }}>
+                  <Text style={styles.secondaryButtonText}>Cancel</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {cancelConfirmationId === request.id ? (
+              <View style={styles.queueActionHint}>
+                <Text style={styles.itemTitle}>Cancel this appointment?</Text>
+                <Text style={styles.itemSubtle}>
+                  It will be removed from the queue, and its place will be released.
+                </Text>
+                <View style={styles.actionRow}>
+                  <Pressable
+                    style={[styles.primaryButton, { flex: 1 }]}
+                    disabled={processingId === request.id}
+                    accessibilityRole="button"
+                    onPress={async () => {
+                      setProcessingId(request.id);
+                      setActionError(undefined);
+                      try {
+                        await cancelAppointmentRequest(request.id);
+                        setCancelConfirmationId(undefined);
+                      } catch (cancelError) {
+                        setActionError(
+                          cancelError instanceof Error
+                            ? cancelError.message
+                            : 'Could not cancel this appointment.',
+                        );
+                      } finally {
+                        setProcessingId(undefined);
+                      }
+                    }}>
+                    {processingId === request.id ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Confirm cancel</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.secondaryButton, { flex: 1 }]}
+                    disabled={processingId === request.id}
+                    accessibilityRole="button"
+                    onPress={() => setCancelConfirmationId(undefined)}>
+                    <Text style={styles.secondaryButtonText}>Keep appointment</Text>
+                  </Pressable>
+                </View>
+              </View>
             ) : null}
           </View>
         ))}
@@ -595,6 +646,8 @@ export function NotificationsScreen() {
               <Text style={styles.itemTitle}>
                 {request.status === 'rejected'
                   ? 'Appointment not approved'
+                  : request.status === 'cancelled'
+                    ? 'Appointment cancelled'
                   : request.status === 'completed'
                     ? 'Cashier visit completed'
                     : request.status === 'skipped'

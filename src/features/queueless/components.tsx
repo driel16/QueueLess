@@ -189,9 +189,56 @@ export function Badge({ label, tone }: { label: string; tone: 'warm' | 'green' }
   );
 }
 
+export function QueueProgress({ step }: { step: number }) {
+  const steps = ['Requested', 'Approved', 'Checked in', 'Being served'];
+
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: steps.length - 1, now: step }}
+      accessibilityLabel={`Queue progress: ${steps[step]}`}>
+      <View style={styles.queueProgressTrack}>
+        <View style={styles.queueProgressRail} />
+        <View
+          style={[
+            styles.queueProgressRail,
+            styles.queueProgressRailActive,
+            { width: `${(step / (steps.length - 1)) * 100}%` },
+          ]}
+        />
+        <View style={styles.queueProgressDots}>
+          {steps.map((label, index) => (
+            <View
+              key={label}
+              style={[
+                styles.queueProgressDot,
+                index <= step ? styles.queueProgressDotActive : null,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+      <View style={styles.queueProgressLabels}>
+        {steps.map((label, index) => (
+          <Text
+            key={label}
+            style={[
+              styles.queueProgressLabel,
+              index === step ? styles.queueProgressLabelActive : null,
+            ]}>
+            {label}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function AppointmentQueueSummary({ request }: { request: AppointmentRequest }) {
   const [isConfirmingFinished, setIsConfirmingFinished] = useState(false);
   const [finishError, setFinishError] = useState<string>();
+  const progressStep = request.status === 'serving' ? 3 : request.arrivedAt ? 2 : 1;
 
   return (
     <View style={styles.appointmentQueueSummary}>
@@ -218,6 +265,12 @@ export function AppointmentQueueSummary({ request }: { request: AppointmentReque
             : 'Appointment approved'}
       </Text>
       <Text style={styles.itemSubtle}>{request.service} · {request.date}</Text>
+      <QueueProgress step={progressStep} />
+      {request.status === 'approved' && !request.arrivedAt ? (
+        <Text style={styles.queueActionHint}>
+          Your appointment is approved. Show your QR code to the cashier when you arrive to check in.
+        </Text>
+      ) : null}
       {request.arrivedAt ? (
         <Text style={styles.itemSubtle}>
           Checked in at {request.arrivedAt.toLocaleTimeString([], {
@@ -229,10 +282,10 @@ export function AppointmentQueueSummary({ request }: { request: AppointmentReque
       {request.status === 'approved' && request.arrivedAt ? (
         <Text style={styles.queueActionHint}>
           {request.nextAt && request.date === formatLocalDate(new Date())
-            ? `You’re next! Please stay near the cashier. The transaction confirmation buttons appear once you’re being served.`
+            ? `You’re next! Please stay near the cashier. The cashier will call you shortly.`
             : request.date > formatLocalDate(new Date())
-              ? `You’re checked in early for your ${request.date} appointment. The cashier can call you on that date; the transaction confirmation buttons appear after you’re being served.`
-              : `You’re checked in. Wait for the cashier to call your queue number. The transaction confirmation buttons appear once you’re being served.`}
+              ? `You’re checked in early for your ${request.date} appointment. The cashier can call you on that date.`
+              : `You’re checked in. Wait nearby; the cashier will call your queue number.`}
         </Text>
       ) : null}
       <View style={styles.appointmentQueueMetrics}>

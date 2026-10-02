@@ -1,7 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { AtSign, BriefcaseBusiness, MailCheck } from 'lucide-react-native';
+import type { Href } from 'expo-router';
+import { AtSign, BriefcaseBusiness, MailCheck, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Badge, EmptyState, ErrorBanner, Field, StaffHeader, StaffScreen } from '../../components';
@@ -415,6 +425,9 @@ export function CashierDashboardScreen() {
   const todaysRequests = requests.filter((request) => request.date === today);
   const pendingCount = requests.filter((request) => request.status === 'pending').length;
   const nowServing = todaysRequests.find((request) => request.status === 'serving');
+  const checkedInWaitingCount = todaysRequests.filter(
+    (request) => request.status === 'approved' && request.arrivedAt,
+  ).length;
   const servedToday = todaysRequests.filter((request) => request.status === 'completed');
   const waitDurations = servedToday.flatMap((request) =>
     request.calledAt && request.arrivedAt
@@ -428,6 +441,33 @@ export function CashierDashboardScreen() {
           60_000,
       )
     : null;
+  const dashboardPrompt: { title: string; message: string; action: string; href: Href } = pendingCount
+      ? {
+          title: `${pendingCount} request${pendingCount === 1 ? '' : 's'} need review`,
+          message: 'Approve or reject pending appointment requests.',
+          action: 'Review requests',
+          href: '/appointment-requests',
+        }
+      : nowServing
+        ? {
+            title: 'Currently serving a student',
+            message: `${nowServing.studentName} · Q-${String(nowServing.queueNumber ?? '—').padStart(3, '0')}`,
+            action: 'View active queue',
+            href: '/active-queue',
+          }
+        : checkedInWaitingCount
+          ? {
+              title: `${checkedInWaitingCount} student${checkedInWaitingCount === 1 ? '' : 's'} ready`,
+              message: 'Checked-in students are waiting. Call the next student when ready.',
+              action: 'Call next',
+              href: '/active-queue',
+            }
+          : {
+              title: 'No action needed',
+              message: 'There are no pending requests or checked-in students waiting right now.',
+              action: 'View queue',
+              href: '/active-queue',
+            };
 
   return (
     <StaffScreen current="dashboard">
@@ -461,18 +501,22 @@ export function CashierDashboardScreen() {
             </Text>
           </View>
         </View>
-        <Text style={styles.sectionTitle}>Staff Actions</Text>
+        <Text style={styles.sectionTitle}>Needs Attention</Text>
+        <Pressable
+          style={styles.compactCard}
+          accessibilityRole="button"
+          onPress={() => router.push(dashboardPrompt.href)}>
+          <Text style={styles.itemTitle}>{dashboardPrompt.title}</Text>
+          <Text style={styles.itemSubtle}>{dashboardPrompt.message}</Text>
+          <Text style={styles.linkText}>{dashboardPrompt.action}</Text>
+        </Pressable>
+        <Text style={styles.sectionTitle}>Quick Links</Text>
         {([
-          ['Review Requests', '/appointment-requests'],
-          ['Manage Active Queue', '/active-queue'],
           ['Update Capacity', '/queue-capacity'],
           ['View Transaction Log', '/transaction-records'],
         ] as const).map(([label, href]) => (
           <Pressable key={label} style={styles.compactCard} onPress={() => router.push(href)}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.itemTitle}>{label}</Text>
-              <Text style={styles.chevron}>{'>'}</Text>
-            </View>
+            <Text style={styles.itemTitle}>{label}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -486,6 +530,8 @@ export function AppointmentRequestsScreen() {
   const [processingId, setProcessingId] = useState<string>();
   const [loadError, setLoadError] = useState<string>();
   const [actionError, setActionError] = useState<string>();
+  const [searchText, setSearchText] = useState('');
+  const [selectedService, setSelectedService] = useState('All services');
 
   useEffect(() => {
     const unsubscribe = subscribeToAppointmentRequests(
@@ -501,6 +547,26 @@ export function AppointmentRequestsScreen() {
     );
     return unsubscribe;
   }, []);
+
+  const pendingRequests = requests.filter((request) => request.status === 'pending');
+  const serviceFilters = [
+    'All services',
+    ...Array.from(new Set(pendingRequests.map((request) => request.service))).sort((a, b) =>
+      a.localeCompare(b),
+    ),
+  ];
+  const activeServiceFilter = serviceFilters.includes(selectedService)
+    ? selectedService
+    : 'All services';
+  const normalizedSearch = searchText.trim().toLocaleLowerCase();
+  const filteredRequests = pendingRequests.filter((request) => {
+    const matchesSearch =
+      !normalizedSearch ||
+      [request.studentName, request.service, request.date, request.id].some((value) =>
+        value.toLocaleLowerCase().includes(normalizedSearch),
+      );
+    return matchesSearch && (activeServiceFilter === 'All services' || request.service === activeServiceFilter);
+  });
 
   const handleReview = async (requestId: string, status: 'approved' | 'rejected') => {
     setActionError(undefined);
@@ -523,8 +589,44 @@ export function AppointmentRequestsScreen() {
         {loadError ? <ErrorBanner message={loadError} /> : null}
         {actionError ? <ErrorBanner message={actionError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
-        {requests.length ? (
-          requests.map((request) => (
+        <View style={[styles.inputShell, { gap: 10 }]}>
+          <Search size={18} color={palette.muted} />
+          <TextInput
+            style={styles.input}
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholder="Search name, service, date or ticket ID"
+            placeholderTextColor={palette.placeholder}
+            accessibilityLabel="Search pending appointment requests"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+        </View>
+        {serviceFilters.length > 1 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8 }}>
+            {serviceFilters.map((service) => {
+              const isSelected = activeServiceFilter === service;
+              return (
+                <Pressable
+                  key={service}
+                  style={isSelected ? styles.pillButton : styles.outlinePillButton}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => setSelectedService(service)}>
+                  <Text style={isSelected ? styles.pillButtonText : styles.outlinePillButtonText}>
+                    {service}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+        {filteredRequests.length ? (
+          filteredRequests.map((request) => (
             <View key={request.id} style={styles.compactCard}>
               <Pressable
                 onPress={() =>
@@ -574,7 +676,14 @@ export function AppointmentRequestsScreen() {
             </View>
           ))
         ) : !isLoading && !loadError ? (
-          <EmptyState title="No appointment requests" message="New student requests will appear here." />
+          <EmptyState
+            title={pendingRequests.length ? 'No matching requests' : 'No pending requests'}
+            message={
+              pendingRequests.length
+                ? 'Try another search term or service filter.'
+                : 'Only appointments awaiting approval or rejection appear here.'
+            }
+          />
         ) : null}
       </ScrollView>
     </StaffScreen>
@@ -1479,7 +1588,10 @@ export function QueueCapacityScreen() {
   const isValidLimit = Number.isInteger(limitValue) && limitValue >= 1 && limitValue <= 5000;
   const today = formatLocalDate(new Date());
   const bookedToday = requests.filter(
-    (request) => request.date === today && request.status !== 'rejected',
+    (request) =>
+      request.date === today &&
+      request.status !== 'rejected' &&
+      request.status !== 'cancelled',
   ).length;
 
   useEffect(() => {
@@ -1623,18 +1735,130 @@ export function TransactionRecordsScreen() {
   const { requests, isLoading, error } = useStaffAppointments();
   const records = requests
     .filter((request) => request.status === 'completed' || request.status === 'skipped')
-    .sort(
-      (first, second) =>
-        (second.completedAt?.getTime() ?? 0) - (first.completedAt?.getTime() ?? 0),
-    );
+    .map((request) => ({
+      request,
+      happenedAt:
+        request.completedAt ??
+        request.skippedAt ??
+        new Date(`${request.date}T00:00:00`),
+    }));
+  const [reportRange, setReportRange] = useState<'today' | '7days' | '30days' | 'all'>('7days');
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const rangeStart =
+    reportRange === 'today'
+      ? todayStart
+      : reportRange === '7days'
+        ? todayStart - 6 * 24 * 60 * 60 * 1000
+        : reportRange === '30days'
+          ? todayStart - 29 * 24 * 60 * 60 * 1000
+          : Number.NEGATIVE_INFINITY;
+  const filteredRecords = records
+    .filter(({ happenedAt }) => happenedAt.getTime() >= rangeStart)
+    .sort((first, second) => second.happenedAt.getTime() - first.happenedAt.getTime());
+  const completedCount = filteredRecords.filter(
+    ({ request }) => request.status === 'completed',
+  ).length;
+  const skippedCount = filteredRecords.filter(({ request }) => request.status === 'skipped').length;
+  const waitDurations = filteredRecords.flatMap(({ request }) =>
+    request.status === 'completed' && request.arrivedAt && request.calledAt
+      ? [Math.max(0, request.calledAt.getTime() - request.arrivedAt.getTime())]
+      : [],
+  );
+  const averageWaitMinutes = waitDurations.length
+    ? Math.round(
+        waitDurations.reduce((total, duration) => total + duration, 0) /
+          waitDurations.length /
+          60_000,
+      )
+    : null;
+  const serviceCounts = filteredRecords.reduce<Record<string, number>>(
+    (counts, { request }) => {
+      if (request.status === 'completed') {
+        counts[request.service] = (counts[request.service] ?? 0) + 1;
+      }
+      return counts;
+    },
+    {},
+  );
+  const serviceEntries = Object.entries(serviceCounts).sort(
+    ([first], [second]) => first.localeCompare(second),
+  );
 
   return (
     <StaffScreen current="dashboard">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <StaffHeader title="Transaction Log" subtitle="History of campus cashier services" backTo="/cashier-dashboard" />
+        <StaffHeader
+          title="Transaction Reports"
+          subtitle="Service outcomes and wait times"
+          backTo="/cashier-dashboard"
+        />
         {error ? <ErrorBanner message={error} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
-        {records.map((request) => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8 }}>
+          {([
+            ['today', 'Today'],
+            ['7days', 'Last 7 days'],
+            ['30days', 'Last 30 days'],
+            ['all', 'All time'],
+          ] as const).map(([range, label]) => {
+            const isSelected = reportRange === range;
+            return (
+              <Pressable
+                key={range}
+                style={isSelected ? styles.pillButton : styles.outlinePillButton}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => setReportRange(range)}>
+                <Text style={isSelected ? styles.pillButtonText : styles.outlinePillButtonText}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <View style={styles.statRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.itemSubtle}>Transactions</Text>
+            <Text style={styles.h1}>{isLoading ? '—' : filteredRecords.length}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.itemSubtle}>Completed</Text>
+            <Text style={styles.h1}>{isLoading ? '—' : completedCount}</Text>
+          </View>
+        </View>
+        <View style={styles.statRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.itemSubtle}>Skipped</Text>
+            <Text style={styles.h1}>{isLoading ? '—' : skippedCount}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.itemSubtle}>Avg Wait</Text>
+            <Text style={styles.h1}>
+              {averageWaitMinutes === null ? '—' : `${averageWaitMinutes} min`}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.sectionTitle}>Completed by Service</Text>
+        {serviceEntries.map(([service, count]) => (
+          <View key={service} style={styles.compactCard}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.itemTitle}>{service}</Text>
+              <Text style={styles.itemTitle}>{count}</Text>
+            </View>
+          </View>
+        ))}
+        {!isLoading && !error && filteredRecords.length > 0 && !serviceEntries.length ? (
+          <EmptyState
+            title="No completed services"
+            message="Skipped appointments are included in transaction history, not service totals."
+          />
+        ) : null}
+        <Text style={styles.sectionTitle}>Transaction History</Text>
+        {filteredRecords.map(({ request, happenedAt }) => (
           <View key={request.id} style={styles.compactCard}>
             <View style={styles.rowBetween}>
               <Text style={styles.itemTitle}>{request.studentName}</Text>
@@ -1647,14 +1871,16 @@ export function TransactionRecordsScreen() {
               {request.service} · {request.date}
             </Text>
             <Text style={styles.itemSubtle}>
-              {request.completedAt
-                ? `Completed ${request.completedAt.toLocaleString()}`
-                : `Appointment ID: ${request.id}`}
+              {request.status === 'completed' ? 'Completed' : 'Skipped'}{' '}
+              {happenedAt.toLocaleString()}
             </Text>
           </View>
         ))}
-        {!isLoading && !error && !records.length ? (
-          <EmptyState title="No transactions yet" message="Completed cashier visits will appear here." />
+        {!isLoading && !error && !filteredRecords.length ? (
+          <EmptyState
+            title="No transactions in this period"
+            message="Try a wider date range to see more completed and skipped appointments."
+          />
         ) : null}
       </ScrollView>
     </StaffScreen>

@@ -15,7 +15,11 @@ import {
 import type { Unsubscribe } from 'firebase/firestore';
 
 import { getCurrentStudentProfile } from './auth';
-import { getCallNextCandidates, getQueueEstimateOrder } from './queue-utils';
+import {
+  getCallNextCandidates,
+  getQueueEstimateOrder,
+  isActiveAppointmentStatus,
+} from './queue-utils';
 import { formatLocalDate, isOperatingDateAvailable } from './schedule-utils';
 import { getOperatingHours } from './settings';
 import { getFirebaseAuth, getFirebaseFirestore } from '@/lib/firebase';
@@ -26,6 +30,7 @@ export type AppointmentRequestStatus =
   | 'serving'
   | 'completed'
   | 'skipped'
+  | 'cancelled'
   | 'rejected';
 
 export type AppointmentRequest = {
@@ -45,6 +50,7 @@ export type AppointmentRequest = {
   createdAt?: Date | null;
   calledAt?: Date | null;
   completedAt?: Date | null;
+  skippedAt?: Date | null;
 };
 
 export type QueueCapacity = { dailyLimit: number };
@@ -68,6 +74,7 @@ function toAppointmentRequest(id: string, data: Record<string, unknown>): Appoin
       data.status === 'serving' ||
       data.status === 'completed' ||
       data.status === 'skipped' ||
+      data.status === 'cancelled' ||
       data.status === 'rejected'
     ) ||
     (data.queueNumber !== undefined && !Number.isInteger(data.queueNumber)) ||
@@ -93,6 +100,7 @@ function toAppointmentRequest(id: string, data: Record<string, unknown>): Appoin
     createdAt: toDate(data.createdAt),
     calledAt: toDate(data.calledAt),
     completedAt: toDate(data.completedAt),
+    skippedAt: toDate(data.skippedAt),
     arrivedAt: toDate(data.arrivedAt),
     nextAt: toDate(data.nextAt),
     studentFinishedAt: toDate(data.studentFinishedAt),
@@ -121,6 +129,7 @@ export async function submitAppointmentRequest({
   const requestRef = doc(collection(db, 'appointments'));
   const capacityDayRef = doc(db, 'appointmentCapacity', date);
   const capacityRef = doc(db, 'settings', 'queueCapacity');
+  const lockRef = doc(db, 'activeAppointmentLocks', profile.uid);
   const request = {
     studentId: profile.uid,
     studentName: profile.displayName,
@@ -130,11 +139,32 @@ export async function submitAppointmentRequest({
     createdAt: serverTimestamp(),
   };
 
+  const existingRequests = await getDocs(
+    query(collection(db, 'appointments'), where('studentId', '==', profile.uid)),
+  );
+  if (existingRequests.docs.some((item) => isActiveAppointmentStatus(item.data().status))) {
+    throw new Error('You already have an active appointment. Cancel or complete it before booking another.');
+  }
+
   await runTransaction(db, async (transaction) => {
-    const [capacitySnapshot, daySnapshot] = await Promise.all([
+    const [capacitySnapshot, daySnapshot, lockSnapshot] = await Promise.all([
       transaction.get(capacityRef),
       transaction.get(capacityDayRef),
+      transaction.get(lockRef),
     ]);
+    if (lockSnapshot.exists()) {
+      const previousAppointmentId = lockSnapshot.data().appointmentId;
+      if (typeof previousAppointmentId !== 'string') {
+        throw new Error('Your existing appointment lock is invalid. Contact the cashier.');
+      }
+      const previousAppointment = await transaction.get(
+        doc(db, 'appointments', previousAppointmentId),
+      );
+      const previousStatus = previousAppointment.data()?.status;
+      if (isActiveAppointmentStatus(previousStatus)) {
+        throw new Error('You already have an active appointment. Cancel or complete it before booking another.');
+      }
+    }
     const configuredLimit = capacitySnapshot.data()?.dailyLimit;
     const dailyLimit =
       typeof configuredLimit === 'number' && Number.isInteger(configuredLimit) && configuredLimit > 0
@@ -148,6 +178,10 @@ export async function submitAppointmentRequest({
     }
 
     transaction.set(requestRef, request);
+    transaction.set(lockRef, {
+      appointmentId: requestRef.id,
+      updatedAt: serverTimestamp(),
+    });
     transaction.set(
       capacityDayRef,
       {
@@ -161,6 +195,164 @@ export async function submitAppointmentRequest({
   });
 
   return requestRef.id;
+}
+
+function assertAppointmentCanChange(
+  data: Record<string, unknown>,
+  requestId: string,
+  currentUserId: string,
+) {
+  if (
+    data.studentId !== currentUserId ||
+    (data.status !== 'pending' && data.status !== 'approved') ||
+    typeof data.date !== 'string' ||
+    data.date <= formatLocalDate(new Date()) ||
+    data.arrivedAt
+  ) {
+    throw new Error(
+      `Appointment ${requestId} can only be changed before its scheduled date and before check-in.`,
+    );
+  }
+}
+
+export async function cancelAppointmentRequest(requestId: string) {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error('Sign in before changing your appointment.');
+
+  const db = getFirebaseFirestore();
+  const appointmentRef = doc(db, 'appointments', requestId);
+  await runTransaction(db, async (transaction) => {
+    const appointment = await transaction.get(appointmentRef);
+    if (!appointment.exists()) {
+      throw new Error('This appointment no longer exists.');
+    }
+    const appointmentData = appointment.data();
+    assertAppointmentCanChange(appointmentData, requestId, user.uid);
+
+    const capacityRef = doc(db, 'appointmentCapacity', appointmentData.date);
+    const lockRef = doc(db, 'activeAppointmentLocks', user.uid);
+    const [capacity, lock] = await Promise.all([
+      transaction.get(capacityRef),
+      transaction.get(lockRef),
+    ]);
+    const appointmentsBooked = capacity.data()?.appointmentsBooked;
+    if (
+      !capacity.exists() ||
+      typeof appointmentsBooked !== 'number' ||
+      !Number.isInteger(appointmentsBooked) ||
+      appointmentsBooked < 1
+    ) {
+      throw new Error('Could not release this appointment’s capacity. Contact the cashier.');
+    }
+
+    transaction.update(appointmentRef, { status: 'cancelled' });
+    if (lock.exists() && lock.data().appointmentId === requestId) {
+      transaction.delete(lockRef);
+    }
+    transaction.update(capacityRef, {
+      appointmentsBooked: appointmentsBooked - 1,
+      lastCancellationId: requestId,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
+export async function rescheduleAppointmentRequest(requestId: string, newDate: string) {
+  const profile = await getCurrentStudentProfile();
+  if (!profile || !profile.emailVerified) {
+    throw new Error('Sign in with your verified student account before changing your appointment.');
+  }
+  if (newDate <= formatLocalDate(new Date())) {
+    throw new Error('Choose a future date to reschedule your appointment.');
+  }
+
+  const operatingHours = await getOperatingHours();
+  if (!isOperatingDateAvailable(newDate, operatingHours)) {
+    throw new Error('That date is not available. Please choose another open date.');
+  }
+
+  const db = getFirebaseFirestore();
+  const appointmentRef = doc(db, 'appointments', requestId);
+  const replacementRef = doc(collection(db, 'appointments'));
+  const capacityRef = doc(db, 'settings', 'queueCapacity');
+  await runTransaction(db, async (transaction) => {
+    const appointment = await transaction.get(appointmentRef);
+    if (!appointment.exists()) {
+      throw new Error('This appointment no longer exists.');
+    }
+    const appointmentData = appointment.data();
+    assertAppointmentCanChange(appointmentData, requestId, profile.uid);
+    if (appointmentData.date === newDate) {
+      throw new Error('Choose a different date to reschedule your appointment.');
+    }
+
+    const oldCapacityRef = doc(db, 'appointmentCapacity', appointmentData.date);
+    const newCapacityRef = doc(db, 'appointmentCapacity', newDate);
+    const lockRef = doc(db, 'activeAppointmentLocks', profile.uid);
+    const [oldCapacity, newCapacity, configuredCapacity, lock] = await Promise.all([
+      transaction.get(oldCapacityRef),
+      transaction.get(newCapacityRef),
+      transaction.get(capacityRef),
+      transaction.get(lockRef),
+    ]);
+    if (lock.exists() && lock.data().appointmentId !== requestId) {
+      throw new Error('Another active appointment already exists. Complete or cancel it first.');
+    }
+    const oldBooked = oldCapacity.data()?.appointmentsBooked;
+    const newBooked = newCapacity.data()?.appointmentsBooked ?? 0;
+    const configuredLimit = configuredCapacity.data()?.dailyLimit;
+    const dailyLimit =
+      typeof configuredLimit === 'number' &&
+      Number.isInteger(configuredLimit) &&
+      configuredLimit > 0
+        ? configuredLimit
+        : defaultQueueCapacity.dailyLimit;
+    if (
+      !oldCapacity.exists() ||
+      typeof oldBooked !== 'number' ||
+      !Number.isInteger(oldBooked) ||
+      oldBooked < 1
+    ) {
+      throw new Error('Could not release this appointment’s capacity. Contact the cashier.');
+    }
+    if (
+      typeof newBooked !== 'number' ||
+      !Number.isInteger(newBooked) ||
+      newBooked >= dailyLimit
+    ) {
+      throw new Error('The selected date is fully booked. Please choose another date.');
+    }
+
+    transaction.update(appointmentRef, { status: 'cancelled' });
+    transaction.set(replacementRef, {
+      studentId: profile.uid,
+      studentName: profile.displayName,
+      service: appointmentData.service,
+      date: newDate,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    transaction.set(lockRef, {
+      appointmentId: replacementRef.id,
+      updatedAt: serverTimestamp(),
+    });
+    transaction.update(oldCapacityRef, {
+      appointmentsBooked: oldBooked - 1,
+      lastCancellationId: requestId,
+      updatedAt: serverTimestamp(),
+    });
+    transaction.set(
+      newCapacityRef,
+      {
+        appointmentsBooked: newBooked + 1,
+        lastBookingId: replacementRef.id,
+        initialized: newCapacity.exists() ? newCapacity.data().initialized === true : false,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
+  return replacementRef.id;
 }
 
 export function subscribeToAppointmentRequests(
@@ -240,8 +432,15 @@ export async function reviewAppointmentRequest(
         throw new Error('This appointment has already been reviewed. Refresh and try again.');
       }
       const capacityDayRef = doc(db, 'appointmentCapacity', appointment.data().date);
-      const capacityDay = await transaction.get(capacityDayRef);
+      const lockRef = doc(db, 'activeAppointmentLocks', appointment.data().studentId);
+      const [capacityDay, lock] = await Promise.all([
+        transaction.get(capacityDayRef),
+        transaction.get(lockRef),
+      ]);
       transaction.update(appointmentRef, { status });
+      if (lock.exists() && lock.data().appointmentId === requestId) {
+        transaction.delete(lockRef);
+      }
       if (capacityDay.exists()) {
         transaction.update(capacityDayRef, {
           appointmentsBooked: Math.max(0, (capacityDay.data().appointmentsBooked ?? 1) - 1),
@@ -471,7 +670,11 @@ export async function finishAppointment(requestId: string) {
     const finishedAt = serverTimestamp();
     if (appointment.data().studentFinishedAt) {
       const queueRef = doc(db, 'appointmentQueues', appointment.data().date);
-      const queue = await transaction.get(queueRef);
+      const lockRef = doc(db, 'activeAppointmentLocks', appointment.data().studentId);
+      const [queue, lock] = await Promise.all([
+        transaction.get(queueRef),
+        transaction.get(lockRef),
+      ]);
       transaction.update(appointmentRef, {
         cashierFinishedAt: finishedAt,
         status: 'completed',
@@ -486,6 +689,9 @@ export async function finishAppointment(requestId: string) {
         },
         { merge: true },
       );
+      if (lock.exists() && lock.data().appointmentId === requestId) {
+        transaction.delete(lockRef);
+      }
     } else {
       transaction.update(appointmentRef, { cashierFinishedAt: finishedAt });
     }
@@ -507,6 +713,8 @@ export async function confirmStudentTransactionFinished(requestId: string) {
     const finishedAt = serverTimestamp();
     if (appointment.data().cashierFinishedAt) {
       const queueRef = doc(db, 'appointmentQueues', appointment.data().date);
+      const lockRef = doc(db, 'activeAppointmentLocks', appointment.data().studentId);
+      const lock = await transaction.get(lockRef);
       transaction.update(appointmentRef, {
         studentFinishedAt: finishedAt,
         status: 'completed',
@@ -517,6 +725,9 @@ export async function confirmStudentTransactionFinished(requestId: string) {
         servedCount: increment(1),
         updatedAt: finishedAt,
       });
+      if (lock.exists() && lock.data().appointmentId === requestId) {
+        transaction.delete(lockRef);
+      }
     } else {
       transaction.update(appointmentRef, { studentFinishedAt: finishedAt });
     }
@@ -642,7 +853,7 @@ export async function initializeAppointmentCapacity(requests: AppointmentRequest
   const db = getFirebaseFirestore();
   const bookedByDate = new Map<string, AppointmentRequest[]>();
   requests
-    .filter((request) => request.status !== 'rejected')
+    .filter((request) => request.status !== 'rejected' && request.status !== 'cancelled')
     .forEach((request) => {
       const bookings = bookedByDate.get(request.date) ?? [];
       bookings.push(request);

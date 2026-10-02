@@ -44,6 +44,31 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
     }
 
+    function currentBusinessDate() {
+      // Appointment dates use the cashier's fixed UTC+8 local calendar.
+      let localTime = request.time + duration.value(8, 'h');
+      return localTime.year().toString()
+        + '-'
+        + (localTime.month() < 10 ? '0' : '')
+        + localTime.month().toString()
+        + '-'
+        + (localTime.day() < 10 ? '0' : '')
+        + localTime.day().toString();
+    }
+
+    function validAppointmentCapacityRelease(queueDate) {
+      let appointmentId = request.resource.data.get('lastCancellationId', '');
+      let appointmentPath = /databases/$(database)/documents/appointments/$(appointmentId);
+      return appointmentId is string
+        && exists(appointmentPath)
+        && get(appointmentPath).data.studentId == request.auth.uid
+        && get(appointmentPath).data.date == queueDate
+        && get(appointmentPath).data.status in ['pending', 'approved']
+        && get(appointmentPath).data.date > currentBusinessDate()
+        && !get(appointmentPath).data.keys().hasAny(['arrivedAt'])
+        && getAfter(appointmentPath).data.status == 'cancelled';
+    }
+
     function validQueueAssignment() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAll([
           'queueNumber',
@@ -85,13 +110,68 @@ service cloud.firestore {
         && getAfter(capacityPath).data['appointmentsBooked'] <= appointmentCapacityLimit();
     }
 
+    function validActiveAppointmentLock(appointmentId, studentId) {
+      let appointmentPath = /databases/$(database)/documents/appointments/$(appointmentId);
+      return existsAfter(appointmentPath)
+        && getAfter(appointmentPath).data.studentId == studentId
+        && getAfter(appointmentPath).data.status in [
+          'pending',
+          'approved',
+          'serving',
+          'skipped'
+        ];
+    }
+
+    function canReleaseActiveAppointmentLock(studentId) {
+      let appointmentId = resource.data.appointmentId;
+      let appointmentPath = /databases/$(database)/documents/appointments/$(appointmentId);
+      return exists(appointmentPath)
+        && get(appointmentPath).data.studentId == studentId
+        && get(appointmentPath).data.status in [
+          'pending',
+          'approved',
+          'serving',
+          'skipped'
+        ]
+        && getAfter(appointmentPath).data.status in ['cancelled', 'rejected', 'completed'];
+    }
+
+    function canReplaceActiveAppointmentLock(studentId) {
+      let previousId = resource.data.appointmentId;
+      let replacementId = request.resource.data.appointmentId;
+      let previousPath = /databases/$(database)/documents/appointments/$(previousId);
+      return previousId is string
+        && replacementId is string
+        && replacementId != previousId
+        && exists(previousPath)
+        && get(previousPath).data.studentId == studentId
+        && get(previousPath).data.status in ['pending', 'approved']
+        && get(previousPath).data.date > currentBusinessDate()
+        && !get(previousPath).data.keys().hasAny(['arrivedAt'])
+        && getAfter(previousPath).data.status == 'cancelled'
+        && validActiveAppointmentLock(replacementId, studentId);
+    }
+
+    function canClaimReleasedAppointmentLock(studentId) {
+      let previousId = resource.data.appointmentId;
+      let replacementId = request.resource.data.appointmentId;
+      let previousPath = /databases/$(database)/documents/appointments/$(previousId);
+      return previousId is string
+        && replacementId is string
+        && replacementId != previousId
+        && exists(previousPath)
+        && get(previousPath).data.studentId == studentId
+        && get(previousPath).data.status in ['cancelled', 'rejected', 'completed']
+        && validActiveAppointmentLock(replacementId, studentId);
+    }
     function validAppointmentCapacityInitialization(queueDate) {
       let appointmentPath = /databases/$(database)/documents/appointments/$(request.resource.data['lastBookingId']);
       return request.resource.data['lastBookingId'] is string
         && request.resource.data['lastBookingId'].size() > 0
         && exists(appointmentPath)
         && get(appointmentPath).data['date'] == queueDate
-        && get(appointmentPath).data['status'] != 'rejected';
+        && get(appointmentPath).data['status'] != 'rejected'
+        && get(appointmentPath).data['status'] != 'cancelled';
     }
 
     function validStudentQueueCompletion(queueDate) {
@@ -314,6 +394,12 @@ service cloud.firestore {
         && request.resource.data['date'].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data['status'] == 'pending'
         && request.resource.data['createdAt'] == request.time
+        && existsAfter(
+          /databases/$(database)/documents/activeAppointmentLocks/$(request.auth.uid)
+        )
+        && getAfter(
+          /databases/$(database)/documents/activeAppointmentLocks/$(request.auth.uid)
+        ).data.appointmentId == appointmentId
         && validAppointmentCapacityForCreate(appointmentId);
 
       allow read: if isStaff()
@@ -481,9 +567,53 @@ service cloud.firestore {
             ])
           )
         )
+      )
+      || (
+        isStudent()
+        && resource.data['studentId'] == request.auth.uid
+        && resource.data['status'] in ['pending', 'approved']
+        && resource.data['date'] > currentBusinessDate()
+        && !resource.data.keys().hasAny(['arrivedAt'])
+        && request.resource.data['status'] == 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
       );
 
       allow delete: if false;
+    }
+
+    match /activeAppointmentLocks/{studentId} {
+      allow read: if isOwner(studentId) || isStaff();
+      allow create: if isStudent()
+        && isOwner(studentId)
+        && request.resource.data.keys().hasOnly(['appointmentId', 'updatedAt'])
+        && request.resource.data.appointmentId is string
+        && request.resource.data.updatedAt == request.time
+        && validActiveAppointmentLock(request.resource.data.appointmentId, studentId);
+      allow update: if isStudent()
+        && isOwner(studentId)
+        && request.resource.data.keys().hasOnly(['appointmentId', 'updatedAt'])
+        && request.resource.data.appointmentId is string
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'appointmentId',
+          'updatedAt'
+        ])
+        && (
+          canReplaceActiveAppointmentLock(studentId)
+          || canClaimReleasedAppointmentLock(studentId)
+        );
+      allow delete: if (
+          isStudent()
+          && isOwner(studentId)
+          && canReleaseActiveAppointmentLock(studentId)
+        )
+        || (
+          isStaff()
+          && getAfter(
+            /databases/$(database)/documents/appointments/$(resource.data.appointmentId)
+          ).data.status == 'rejected'
+          && canReleaseActiveAppointmentLock(studentId)
+        );
     }
 
     match /appointmentQueues/{queueDate} {
@@ -597,6 +727,20 @@ service cloud.firestore {
           && request.resource.data['lastBookingId'] != resource.data['lastBookingId']
           && request.resource.data['updatedAt'] == request.time
           && validAppointmentCapacityBooking(queueDate)
+        )
+        || (
+          isStudent()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'appointmentsBooked',
+            'lastCancellationId',
+            'updatedAt'
+          ])
+          && request.resource.data['appointmentsBooked'] is int
+          && request.resource.data['appointmentsBooked'] == resource.data['appointmentsBooked'] - 1
+          && request.resource.data['appointmentsBooked'] >= 0
+          && request.resource.data['lastCancellationId'] is string
+          && request.resource.data['updatedAt'] == request.time
+          && validAppointmentCapacityRelease(queueDate)
         )
         || (
           isStaff()

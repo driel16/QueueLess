@@ -1,4 +1,15 @@
-import type { AppointmentRequest } from './appointment-requests';
+import type { AppointmentRequest, AppointmentRequestStatus } from './appointment-requests';
+
+export function isActiveAppointmentStatus(
+  status: unknown,
+): status is Extract<AppointmentRequestStatus, 'pending' | 'approved' | 'serving' | 'skipped'> {
+  return (
+    status === 'pending' ||
+    status === 'approved' ||
+    status === 'serving' ||
+    status === 'skipped'
+  );
+}
 
 export function getCallNextCandidates(requests: AppointmentRequest[]) {
   return requests
