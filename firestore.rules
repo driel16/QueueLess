@@ -172,6 +172,8 @@ service cloud.firestore {
             'displayName',
             'role',
             'studentNumber',
+            'termsVersion',
+            'termsAcceptedAt',
             'createdAt'
           ])
           && request.resource.data.email == request.auth.token.email
@@ -180,6 +182,8 @@ service cloud.firestore {
           && request.resource.data.role == 'student'
           && request.resource.data.studentNumber is string
           && request.resource.data.studentNumber.size() > 0
+          && request.resource.data.termsVersion == '2026-10-02-v1'
+          && request.resource.data.termsAcceptedAt == request.time
           && request.resource.data.createdAt == request.time
         )
         || (
@@ -210,12 +214,18 @@ service cloud.firestore {
             'displayName',
             'role',
             'studentNumber',
+            'termsVersion',
+            'termsAcceptedAt',
             'createdAt'
           ])
           && request.resource.data.email == resource.data.email
           && request.resource.data.displayName == resource.data.displayName
           && request.resource.data.role == resource.data.role
           && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.get('termsVersion', null)
+            == resource.data.get('termsVersion', null)
+          && request.resource.data.get('termsAcceptedAt', null)
+            == resource.data.get('termsAcceptedAt', null)
           && request.resource.data.studentNumber is string
           && request.resource.data.studentNumber.size() > 0
         )

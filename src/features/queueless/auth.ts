@@ -28,6 +28,7 @@ import {
   getFirebaseAuth,
   getFirebaseFirestore,
 } from '@/lib/firebase';
+import { TERMS_VERSION } from './terms';
 
 export type AccountRole = 'student' | 'staff';
 export const ADMIN_EMAIL = 'azedricmarc@gmail.com';
@@ -80,7 +81,12 @@ export async function registerStudent(
   email: string,
   password: string,
   studentNumber: string,
+  acceptedTerms: boolean,
 ) {
+  if (!acceptedTerms) {
+    throw new Error('Review and accept the Terms & Conditions before creating an account.');
+  }
+
   const auth = getFirebaseAuth();
   const db = getFirebaseFirestore();
   const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -91,6 +97,8 @@ export async function registerStudent(
       displayName: displayName.trim(),
       role: 'student',
       studentNumber: studentNumber.trim(),
+      termsVersion: TERMS_VERSION,
+      termsAcceptedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     });
   } catch (error) {

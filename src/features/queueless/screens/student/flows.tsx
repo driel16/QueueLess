@@ -32,6 +32,7 @@ export function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +52,7 @@ export function RegisterScreen() {
     displayName.trim() &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
       studentNumber.trim() &&
+      acceptedTerms &&
       password,
   );
 
@@ -145,6 +147,47 @@ export function RegisterScreen() {
             <Field label="Student Number" value={studentNumber} onChangeText={setStudentNumber} error={studentNumberError} icon={Hash} placeholder="e.g. 2026-10458" keyboardType="default" />
             <Field label="Password" value={password} onChangeText={setPassword} error={passwordError} secure placeholder="Create a password" />
             <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: acceptedTerms }}
+              onPress={() => setAcceptedTerms((accepted) => !accepted)}
+              style={{
+                minHeight: 48,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                paddingVertical: 6,
+              }}>
+              <View
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: acceptedTerms ? '#0F8F8B' : '#AAB6C6',
+                  backgroundColor: acceptedTerms ? '#0F8F8B' : '#FFFFFF',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                {acceptedTerms ? <Check size={16} color="#FFFFFF" strokeWidth={3} /> : null}
+              </View>
+              <Text style={[styles.itemSubtle, { flex: 1, fontSize: 14 }]}>
+                I agree to the Terms & Conditions.
+              </Text>
+            </Pressable>
+            {submitted && !acceptedTerms ? (
+              <Text style={{ color: '#D74C5C', fontSize: 13, fontWeight: '700' }}>
+                You must accept the Terms & Conditions to create an account.
+              </Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push('/terms')}
+              style={{ minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' }}>
+              <Text style={{ color: '#0F8F8B', fontSize: 14, fontWeight: '800' }}>
+                Read Terms & Conditions
+              </Text>
+            </Pressable>
+            <Pressable
               style={[styles.primaryButton, !canSubmit && styles.primaryButtonMuted]}
               accessibilityRole="button"
               disabled={isLoading}
@@ -155,7 +198,13 @@ export function RegisterScreen() {
 
                 setIsLoading(true);
                 try {
-                  await registerStudent(displayName, email, password, studentNumber);
+                  await registerStudent(
+                    displayName,
+                    email,
+                    password,
+                    studentNumber,
+                    acceptedTerms,
+                  );
                   setVerificationSent(true);
                 } catch (error) {
                   setAuthError(getAuthErrorMessage(error, 'register'));
