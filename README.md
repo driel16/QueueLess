@@ -134,7 +134,7 @@ Student registration collects a display name and creates a `users/{uid}` profile
 
 ### Staff service and schedule settings
 
-Verified staff accounts and the verified admin account can manage service availability from the dedicated **Staff → Services** tab. The student service list hides services that staff turn off. The **Manage schedule** screen under Services configures operating weekdays, 24-hour opening and closing times, 15/30/60-minute appointment slots, and specific closed dates. Students see only dates and time slots that match the published schedule. The **Settings** tab is reserved for staff account details and sign-out. Until staff save a schedule, the calendar defaults to weekdays from 08:00 to 17:00 in 30-minute slots.
+Verified staff accounts and the verified admin account can manage service availability from the dedicated **Staff → Services** tab. The student service list hides services that staff turn off. The **Manage schedule** screen under Services configures operating weekdays, 24-hour opening and closing times, the average service duration used to estimate queue waits, and specific closed dates. Students choose an available date rather than a reserved time; approved requests are queued in queue-number order. The **Settings** tab is reserved for staff account details and sign-out. Until staff save a schedule, the calendar defaults to weekdays from 08:00 to 17:00 with a 30-minute estimated service duration.
 
 Availability is stored in `serviceAvailability/{serviceId}` documents and `settings/operatingHours`. Verified users can read these settings; only verified staff profiles (`users/{uid}.role == "staff"`) and the verified admin can write them. Publish `firestore.rules` after updating the application:
 

@@ -3,7 +3,9 @@ import { describe, expect, it } from '@jest/globals';
 import {
   createTimeSlots,
   formatLocalDate,
+  formatTimeForDisplay,
   getCalendarDates,
+  parseTimeFromDisplay,
   parseTimeToMinutes,
 } from '../schedule-utils';
 import type { OperatingHours } from '../schedule-utils';
@@ -45,6 +47,41 @@ describe('parseTimeToMinutes', () => {
   it.each(['8:00', '24:00', '12:60', 'not a time'])('rejects invalid time %s', (time) => {
     expect(parseTimeToMinutes(time)).toBeUndefined();
   });
+});
+
+describe('formatTimeForDisplay', () => {
+  it.each([
+    ['00:00', '12:00 AM'],
+    ['08:30', '8:30 AM'],
+    ['12:00', '12:00 PM'],
+    ['17:45', '5:45 PM'],
+    ['23:59', '11:59 PM'],
+  ])('formats %s as %s', (time, expected) => {
+    expect(formatTimeForDisplay(time)).toBe(expected);
+  });
+
+  it('leaves malformed values unchanged', () => {
+    expect(formatTimeForDisplay('8:00')).toBe('8:00');
+  });
+});
+
+describe('parseTimeFromDisplay', () => {
+  it.each([
+    ['12:00 AM', '00:00'],
+    ['8:30 AM', '08:30'],
+    ['12:00 PM', '12:00'],
+    ['5:45 pm', '17:45'],
+    ['11:59 PM', '23:59'],
+  ])('converts %s to %s for storage', (displayTime, expected) => {
+    expect(parseTimeFromDisplay(displayTime)).toBe(expected);
+  });
+
+  it.each(['0:00 AM', '13:00 PM', '8:60 AM', '8:00', 'noon'])(
+    'rejects invalid 12-hour time %s',
+    (displayTime) => {
+      expect(parseTimeFromDisplay(displayTime)).toBeUndefined();
+    },
+  );
 });
 
 describe('createTimeSlots', () => {

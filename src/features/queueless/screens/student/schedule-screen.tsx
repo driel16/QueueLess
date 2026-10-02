@@ -5,7 +5,6 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { AppScreen, EmptyState, ErrorBanner, Header } from '../../components';
 import { services } from '../../data';
 import {
-  createTimeSlots,
   defaultOperatingHours,
   formatLocalDate,
   getCalendarDates,
@@ -48,7 +47,6 @@ export default function ScheduleScreen() {
   }, []);
 
   const calendarDates = useMemo(() => getCalendarDates(month), [month]);
-  const timeSlots = useMemo(() => createTimeSlots(hours, selectedDate), [hours, selectedDate]);
   const today = formatLocalDate(new Date());
   const serviceIsAvailable = service ? availability[service.id] !== false : false;
 
@@ -66,7 +64,7 @@ export default function ScheduleScreen() {
     <AppScreen current="schedule">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header
-          title="Schedule Spot"
+          title="Join the Queue"
           subtitle={service ? `${service.title} · Main Cashier` : 'Choose a service first'}
           backTo="/services"
         />
@@ -134,38 +132,35 @@ export default function ScheduleScreen() {
                   );
                 })}
               </View>
-              <Text style={styles.itemSubtle}>Select an available date to see appointment times.</Text>
+              <Text style={styles.itemSubtle}>
+                Select an available date to join that day’s cashier queue.
+              </Text>
             </View>
-            {!hours.enabledWeekdays.length || !timeSlots.length ? (
-              <EmptyState title="No appointment times" message="The cashier schedule does not currently have any open days or valid time slots." />
-            ) : null}
-            {selectedDate && timeSlots.length ? (
+            {selectedDate ? (
               <View style={styles.settingsCard}>
                 <Text style={styles.itemTitle}>
-                  Available times · {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  Queue date ·{' '}
+                  {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
                 </Text>
-                <View style={styles.bookingTimesGrid}>
-                  {timeSlots.map((time) => (
-                    <Pressable
-                      key={time}
-                      accessibilityRole="button"
-                      style={styles.bookingTime}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/appointment-request',
-                          params: { serviceTitle: service.title, date: selectedDate, time },
-                        })}>
-                      <Text style={styles.bookingTimeText}>{time}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <Text style={styles.itemSubtle}>
+                  You’ll join the cashier’s queue for this date. Your queue number and estimated
+                  wait will be available after approval.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  style={styles.primaryButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/appointment-request',
+                      params: { serviceTitle: service.title, date: selectedDate },
+                    })}>
+                  <Text style={styles.primaryButtonText}>Continue with selected date</Text>
+                </Pressable>
               </View>
-            ) : null}
-            {selectedDate && !timeSlots.length ? (
-              <EmptyState
-                title="No times left for this date"
-                message="Choose another open date to see available appointment times."
-              />
             ) : null}
           </>
         ) : null}

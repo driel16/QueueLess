@@ -1,21 +1,28 @@
 import { router } from 'expo-router';
 import { AlertCircle, ArrowLeft, AtSign, Eye, EyeOff, Inbox, LockKeyhole } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { staffTabs, tabs } from './data';
+import { createAppointmentQrPayload } from './appointment-qr';
+import { confirmStudentTransactionFinished } from './appointment-requests';
+import type { AppointmentRequest } from './appointment-requests';
 import { palette } from './palette';
+import { formatLocalDate } from './schedule-utils';
 import { styles } from './styles';
 import type { AppRoute, StaffRoute } from './types';
 
 export function AppScreen({ children, current }: { children: React.ReactNode; current: AppRoute }) {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.screen}>
         <View style={{ flex: 1 }}>{children}</View>
-        <BottomNav current={current} />
+        <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
+          <BottomNav current={current} />
+        </SafeAreaView>
       </View>
     </SafeAreaView>
   );
@@ -23,10 +30,12 @@ export function AppScreen({ children, current }: { children: React.ReactNode; cu
 
 export function StaffScreen({ children, current }: { children: React.ReactNode; current: StaffRoute }) {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.screen}>
         <View style={{ flex: 1 }}>{children}</View>
-        <StaffBottomNav current={current} />
+        <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
+          <StaffBottomNav current={current} />
+        </SafeAreaView>
       </View>
     </SafeAreaView>
   );
@@ -176,6 +185,139 @@ export function Badge({ label, tone }: { label: string; tone: 'warm' | 'green' }
       <Text style={[styles.badgeText, tone === 'green' ? styles.badgeGreenText : styles.badgeWarmText]}>
         {label}
       </Text>
+    </View>
+  );
+}
+
+export function AppointmentQueueSummary({ request }: { request: AppointmentRequest }) {
+  const [isConfirmingFinished, setIsConfirmingFinished] = useState(false);
+  const [finishError, setFinishError] = useState<string>();
+
+  return (
+    <View style={styles.appointmentQueueSummary}>
+      <View style={styles.rowBetween}>
+        <View style={styles.successIcon}>
+          <Text style={styles.successIconText}>✓</Text>
+        </View>
+        <Badge
+          label={
+            request.status === 'serving'
+              ? 'Now Serving'
+              : request.arrivedAt
+                ? 'Checked in'
+                : 'Approved'
+          }
+          tone="green"
+        />
+      </View>
+      <Text style={styles.appointmentQueueTitle}>
+        {request.status === 'serving'
+          ? 'You are being served'
+          : request.arrivedAt
+            ? 'You are checked in'
+            : 'Appointment approved'}
+      </Text>
+      <Text style={styles.itemSubtle}>{request.service} · {request.date}</Text>
+      {request.arrivedAt ? (
+        <Text style={styles.itemSubtle}>
+          Checked in at {request.arrivedAt.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
+        </Text>
+      ) : null}
+      {request.status === 'approved' && request.arrivedAt ? (
+        <Text style={styles.queueActionHint}>
+          {request.nextAt && request.date === formatLocalDate(new Date())
+            ? `You’re next! Please stay near the cashier. The transaction confirmation buttons appear once you’re being served.`
+            : request.date > formatLocalDate(new Date())
+              ? `You’re checked in early for your ${request.date} appointment. The cashier can call you on that date; the transaction confirmation buttons appear after you’re being served.`
+              : `You’re checked in. Wait for the cashier to call your queue number. The transaction confirmation buttons appear once you’re being served.`}
+        </Text>
+      ) : null}
+      <View style={styles.appointmentQueueMetrics}>
+        <View style={styles.appointmentQueueMetric}>
+          <Text style={styles.appointmentQueueMetricLabel}>Queue number</Text>
+          <Text style={styles.appointmentQueueMetricValue}>
+            {request.queueNumber
+              ? `Q-${String(request.queueNumber).padStart(3, '0')}`
+              : 'Generating ticket…'}
+          </Text>
+        </View>
+        <View style={styles.appointmentQueueMetric}>
+          <Text style={styles.appointmentQueueMetricLabel}>Students ahead</Text>
+          <Text style={styles.appointmentQueueMetricValue}>
+            {typeof request.queueNumber === 'number' ? request.studentsAhead ?? '—' : '—'}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.itemSubtle}>
+        {typeof request.queueNumber === 'number'
+          ? typeof request.estimatedWaitMinutes === 'number'
+            ? `Estimated wait: about ${request.estimatedWaitMinutes} min`
+            : 'Your queue position is ready.'
+          : 'Your queue ticket is being prepared automatically.'}
+      </Text>
+      {request.status === 'serving' ? (
+        request.studentFinishedAt ? (
+          <Text style={styles.queueActionHint}>
+            You confirmed the transaction is finished. Waiting for the cashier to confirm.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.itemSubtle}>
+              After the cashier has finished helping you, confirm the transaction below.
+            </Text>
+            {finishError ? <ErrorBanner message={finishError} /> : null}
+            <Pressable
+              style={styles.primaryButton}
+              disabled={isConfirmingFinished}
+              accessibilityRole="button"
+              onPress={async () => {
+                setIsConfirmingFinished(true);
+                setFinishError(undefined);
+                try {
+                  await confirmStudentTransactionFinished(request.id);
+                } catch (error) {
+                  setFinishError(
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not confirm that the transaction is finished.',
+                  );
+                } finally {
+                  setIsConfirmingFinished(false);
+                }
+              }}>
+              {isConfirmingFinished ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Confirm Transaction Finished</Text>
+              )}
+            </Pressable>
+          </>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+export function AppointmentQrTicket({ request }: { request: AppointmentRequest }) {
+  if (request.status !== 'approved' || request.arrivedAt) return null;
+
+  return (
+    <View style={styles.appointmentQrCard}>
+      <Text style={styles.appointmentQueueTitle}>Cashier check-in QR</Text>
+      <Text style={styles.itemSubtle}>
+        Show this code to the cashier to verify your appointment and check in.
+      </Text>
+      <QRCode
+        value={createAppointmentQrPayload(request.id)}
+        size={200}
+        color="#13223D"
+        backgroundColor="#FFFFFF"
+        ecl="M"
+      />
+      <Text style={styles.itemSubtle}>Appointment ID: {request.id}</Text>
     </View>
   );
 }

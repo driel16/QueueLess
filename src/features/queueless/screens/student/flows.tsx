@@ -4,14 +4,28 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppScreen, Badge, EmptyState, ErrorBanner, Field, Header } from '../../components';
+import {
+  AppScreen,
+  AppointmentQrTicket,
+  AppointmentQueueSummary,
+  Badge,
+  EmptyState,
+  ErrorBanner,
+  Field,
+  Header,
+} from '../../components';
 import {
   getAuthErrorMessage,
   registerStudent,
   resendVerificationEmail,
 } from '../../auth';
+import {
+  submitAppointmentRequest,
+} from '../../appointment-requests';
+import { formatLocalDate } from '../../schedule-utils';
 import { services } from '../../data';
 import { styles } from '../../styles';
+import { useStudentAppointments } from '../../use-student-appointments';
 
 export function RegisterScreen() {
   const [displayName, setDisplayName] = useState('');
@@ -196,12 +210,13 @@ export function ServiceDetailsScreen() {
 }
 
 export function AppointmentRequestScreen() {
-  const { date, time, serviceTitle } = useLocalSearchParams<{
+  const { date, serviceTitle } = useLocalSearchParams<{
     date?: string;
-    time?: string;
     serviceTitle?: string;
   }>();
   const service = services.find((item) => item.title === serviceTitle);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string>();
   const parsedDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T12:00:00`) : null;
   const dateIsValid =
     parsedDate !== null &&
@@ -213,10 +228,11 @@ export function AppointmentRequestScreen() {
   return (
     <AppScreen current="schedule">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header title="Appointment Request" subtitle="Review before submitting" backTo="/schedule" />
-        {!service || !dateIsValid || !time ? (
-          <ErrorBanner message="Choose a service, date, and time before submitting this request." />
+        <Header title="Queue Request" subtitle="Review your queue date before submitting" backTo="/schedule" />
+        {!service || !dateIsValid ? (
+          <ErrorBanner message="Choose a service and date before submitting this queue request." />
         ) : null}
+        {submissionError ? <ErrorBanner message={submissionError} /> : null}
         {[
           ['Service', service?.title ?? 'Choose a service'],
           [
@@ -229,7 +245,6 @@ export function AppointmentRequestScreen() {
                 })
               : 'Choose a date',
           ],
-          ['Time', time || 'Choose a time'],
           ['Cashier', 'State University Main Cashier'],
         ].map(([label, value]) => (
           <View key={label} style={styles.profileRow}>
@@ -238,12 +253,39 @@ export function AppointmentRequestScreen() {
           </View>
         ))}
         <Pressable
-          style={[styles.primaryButton, (!service || !dateIsValid || !time) && styles.primaryButtonMuted]}
-          disabled={!service || !dateIsValid || !time}
+          style={[styles.primaryButton, (!service || !dateIsValid) && styles.primaryButtonMuted]}
+          disabled={!service || !dateIsValid || isSubmitting}
           accessibilityRole="button"
-          accessibilityState={{ disabled: !service || !dateIsValid || !time }}
-          onPress={() => router.push('/appointment-confirmation')}>
-          <Text style={styles.primaryButtonText}>Submit Request</Text>
+          accessibilityState={{ disabled: !service || !dateIsValid || isSubmitting }}
+          onPress={async () => {
+            if (!service || !dateIsValid || isSubmitting) {
+              return;
+            }
+
+            setSubmissionError(undefined);
+            setIsSubmitting(true);
+            try {
+              const ticket = await submitAppointmentRequest({
+                service: service.title,
+                date: String(date),
+              });
+
+              router.push({ pathname: '/appointment-confirmation', params: { ticket } });
+            } catch (error) {
+              setSubmissionError(
+                error instanceof Error
+                  ? error.message
+                  : 'Could not submit your appointment request. Please try again.',
+              );
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}>
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Submit Request</Text>
+          )}
         </Pressable>
       </ScrollView>
     </AppScreen>
@@ -251,76 +293,305 @@ export function AppointmentRequestScreen() {
 }
 
 export function AppointmentConfirmationScreen() {
+  const { ticket } = useLocalSearchParams<{ ticket?: string }>();
+  const { requests, isLoading, error } = useStudentAppointments();
+  const request = requests.find((item) => item.id === ticket);
+
   return (
     <AppScreen current="queue">
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileHeader}>
-          <View style={styles.largeAvatar}>
+      <ScrollView contentContainerStyle={styles.confirmationContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.confirmationHeader}>
+          <View style={[styles.largeAvatar, styles.confirmationAvatar]}>
             <Text style={styles.largeAvatarText}>OK</Text>
           </View>
-          <Text style={styles.h1}>Request preview complete</Text>
-          <Text style={styles.mutedCenter}>
-            This app preview does not save appointment requests. Connect an account to submit and track a real request.
+          <Text style={[styles.h1, styles.confirmationTitle]}>{request?.status === 'serving'
+            ? 'You are being served!'
+            : request?.status === 'approved'
+            ? 'Appointment approved!'
+            : ticket
+              ? 'Appointment requested successfully!'
+              : 'Appointment request not found'}</Text>
+          <Text style={styles.confirmationDescription}>
+            {request?.status === 'serving'
+              ? 'The cashier is serving your appointment now.'
+              : request?.status === 'approved'
+              ? 'The cashier approved your queue request. Your queue details are ready below.'
+              : ticket
+                ? `Your request has been sent to the cashier for review. Appointment ID: ${ticket}.`
+                : 'Please submit your appointment request again.'}
           </Text>
+          {request?.status === 'approved' || request?.status === 'serving' ? (
+            <>
+              <AppointmentQueueSummary request={request} />
+              <AppointmentQrTicket request={request} />
+            </>
+          ) : ticket ? (
+            <View style={styles.confirmationStatusCard}>
+              <Text style={styles.itemSubtle}>Status</Text>
+              <Text style={styles.confirmationStatusValue}>
+                {isLoading ? 'Checking status…' : request?.status === 'rejected' ? 'Request declined' : 'Pending review'}
+              </Text>
+            </View>
+          ) : null}
+          {error ? <ErrorBanner message={error} /> : null}
         </View>
-        <Pressable style={styles.primaryButton} onPress={() => router.replace('/home')}>
-          <Text style={styles.primaryButtonText}>Back to Home</Text>
-        </Pressable>
+        <View style={[styles.buttonStack, styles.confirmationButtonStack]}>
+          {request?.status === 'approved' || request?.status === 'serving' ? (
+            <Pressable style={[styles.primaryButton, styles.confirmationButton]} onPress={() => router.replace('/queue')}>
+              <Text style={styles.primaryButtonText}>Continue to Queue</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            style={[
+              request?.status === 'approved' ? styles.secondaryButton : styles.primaryButton,
+              styles.confirmationButton,
+            ]}
+            onPress={() => router.replace('/home')}>
+            <Text
+              style={
+                request?.status === 'approved'
+                  ? styles.secondaryButtonText
+                  : styles.primaryButtonText
+              }>
+              Back to Home
+            </Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </AppScreen>
   );
 }
 
 export function AppointmentStatusScreen() {
+  const { requests, isLoading, error: loadError } = useStudentAppointments();
+  const hasApprovedRequest = requests.some((request) => request.status === 'approved');
+
   return (
     <AppScreen current="queue">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Appointment Status" subtitle="Latest request update" backTo="/home" />
-        <EmptyState title="No appointment requests" message="When you submit a request, its status will appear here." />
+        {loadError ? <ErrorBanner message={loadError} /> : null}
+        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {requests.length ? (
+          requests.map((request) => (
+            <View key={request.id} style={styles.appointmentStatusCard}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.itemTitle}>{request.service}</Text>
+                <Badge
+                  label={request.status[0].toUpperCase() + request.status.slice(1)}
+                  tone={request.status === 'approved' ? 'green' : 'warm'}
+                />
+              </View>
+              <Text style={styles.itemSubtle}>Appointment ID: {request.id}</Text>
+              <Text style={styles.itemSubtle}>
+                {request.date}
+              </Text>
+              {request.status === 'approved' ? (
+                <>
+                  <AppointmentQueueSummary request={request} />
+                  <AppointmentQrTicket request={request} />
+                </>
+              ) : null}
+            </View>
+          ))
+        ) : !isLoading && !loadError ? (
+          <EmptyState title="No appointment requests" message="When you submit a request, its status will appear here." />
+        ) : null}
+        {hasApprovedRequest ? (
+          <Pressable style={styles.primaryButton} onPress={() => router.push('/queue')}>
+            <Text style={styles.primaryButtonText}>Continue to Queue</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </AppScreen>
   );
 }
 
 export function AppointmentTicketScreen() {
+  const { requests, isLoading, error } = useStudentAppointments();
+  const request = requests.find(
+    (item) => item.status === 'approved' || item.status === 'serving',
+  );
+
   return (
     <AppScreen current="queue">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Virtual Ticket" subtitle="Digital appointment receipt" backTo="/appointment-status" />
-        <EmptyState title="No ticket yet" message="A queue ticket will appear here after an appointment is confirmed." />
+        {error ? <ErrorBanner message={error} /> : null}
+        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {request ? (
+          <>
+            <AppointmentQueueSummary request={request} />
+            <AppointmentQrTicket request={request} />
+          </>
+        ) : !isLoading && !error ? (
+          <EmptyState title="No ticket yet" message="A queue ticket will appear here after an appointment is approved." />
+        ) : null}
+        <View style={styles.buttonStack}>
+          <Pressable style={styles.primaryButton} onPress={() => router.push('/queue')}>
+            <Text style={styles.primaryButtonText}>Continue to Queue</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={() => router.replace('/home')}>
+            <Text style={styles.secondaryButtonText}>Back to Home</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </AppScreen>
   );
 }
 
 export function MyAppointmentsScreen() {
+  const { requests, isLoading, error } = useStudentAppointments();
+
   return (
     <AppScreen current="queue">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header title="My Appointments" subtitle="Upcoming and recent requests" backTo="/home" />
-        <EmptyState title="No appointments yet" message="Your upcoming and past appointments will appear here." />
+        <Header title="My Queue Requests" subtitle="Upcoming and recent requests" backTo="/home" />
+        {error ? <ErrorBanner message={error} /> : null}
+        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {requests.map((request) => (
+          <View key={request.id} style={styles.appointmentStatusCard}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.itemTitle}>{request.service}</Text>
+              <Badge
+                label={request.status[0].toUpperCase() + request.status.slice(1)}
+                tone={
+                  request.status === 'approved' ||
+                  request.status === 'serving' ||
+                  request.status === 'completed'
+                    ? 'green'
+                    : 'warm'
+                }
+              />
+            </View>
+            <Text style={styles.itemSubtle}>Appointment ID: {request.id}</Text>
+            <Text style={styles.itemSubtle}>{request.date}</Text>
+            {request.status === 'approved' || request.status === 'serving' ? (
+              <>
+                <AppointmentQueueSummary request={request} />
+                <AppointmentQrTicket request={request} />
+              </>
+            ) : null}
+          </View>
+        ))}
+        {!isLoading && !error && !requests.length ? (
+          <EmptyState title="No appointments yet" message="Your upcoming and past appointments will appear here." />
+        ) : null}
+        <View style={styles.buttonStack}>
+          <Pressable style={styles.primaryButton} onPress={() => router.push('/services')}>
+            <Text style={styles.primaryButtonText}>Book an Appointment</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={() => router.replace('/home')}>
+            <Text style={styles.secondaryButtonText}>Back to Home</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </AppScreen>
   );
 }
 
 export function QueueHistoryScreen() {
+  const { requests, isLoading, error } = useStudentAppointments();
+  const history = requests.filter(
+    (request) => request.status === 'completed' || request.status === 'skipped',
+  );
+
   return (
     <AppScreen current="profile">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Queue History" subtitle="Completed cashier transactions" backTo="/profile" />
-        <EmptyState title="No queue history" message="Completed queue visits will appear here." />
+        {error ? <ErrorBanner message={error} /> : null}
+        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {history.map((request) => (
+          <View key={request.id} style={styles.compactCard}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.itemTitle}>{request.service}</Text>
+              <Badge
+                label={request.status[0].toUpperCase() + request.status.slice(1)}
+                tone={request.status === 'completed' ? 'green' : 'warm'}
+              />
+            </View>
+            <Text style={styles.itemSubtle}>
+              {request.date}
+            </Text>
+            <Text style={styles.itemSubtle}>
+              {request.queueNumber
+                ? `Queue Q-${String(request.queueNumber).padStart(3, '0')}`
+                : `Appointment ID: ${request.id}`}
+            </Text>
+          </View>
+        ))}
+        {!isLoading && !error && !history.length ? (
+          <EmptyState title="No queue history" message="Completed queue visits will appear here." />
+        ) : null}
       </ScrollView>
     </AppScreen>
   );
 }
 
 export function NotificationsScreen() {
+  const { requests, isLoading, error } = useStudentAppointments();
+  const notificationRequests = requests.filter((request) => request.status !== 'pending');
+  const today = formatLocalDate(new Date());
+
   return (
     <AppScreen current="queue">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Notifications" subtitle="Queue and appointment alerts" backTo="/home" />
-        <EmptyState title="No notifications" message="Queue and appointment updates will appear here." />
+        {error ? <ErrorBanner message={error} /> : null}
+        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {notificationRequests.length ? (
+          notificationRequests.map((request) => (
+            <View key={request.id} style={styles.appointmentStatusCard}>
+              <Text style={styles.itemTitle}>
+                {request.status === 'rejected'
+                  ? 'Appointment not approved'
+                  : request.status === 'completed'
+                    ? 'Cashier visit completed'
+                    : request.status === 'skipped'
+                      ? 'Appointment skipped'
+                      : request.status === 'serving'
+                          ? 'You’re up!'
+                          : request.status === 'approved' &&
+                              request.date === today &&
+                              request.nextAt
+                            ? 'You’re next!'
+                          : 'Appointment approved'}
+              </Text>
+              <Text style={styles.itemSubtle}>
+                {request.service} · {request.date}
+              </Text>
+              {request.status === 'serving' ? (
+                <Text style={styles.itemSubtle}>
+                    The cashier is ready to serve you now.
+                </Text>
+              ) : request.status === 'approved' &&
+                request.date === today &&
+                request.nextAt ? (
+                <Text style={styles.itemSubtle}>
+                    Please stay near the cashier. You are next in today’s queue.
+                </Text>
+              ) : request.status === 'approved' ? (
+                <Text style={styles.itemSubtle}>
+                    Your appointment has been approved. Check your queue position below.
+                </Text>
+              ) : null}
+              {request.status === 'approved' || request.status === 'serving' ? (
+                <>
+                  <>
+                    <AppointmentQueueSummary request={request} />
+                    <AppointmentQrTicket request={request} />
+                  </>
+                  <Pressable style={styles.primaryButton} onPress={() => router.push('/queue')}>
+                    <Text style={styles.primaryButtonText}>View Queue</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          ))
+        ) : !isLoading && !error ? (
+          <EmptyState title="No notifications" message="Appointment approvals and queue updates will appear here." />
+        ) : null}
       </ScrollView>
     </AppScreen>
   );

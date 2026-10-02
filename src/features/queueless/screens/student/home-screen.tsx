@@ -3,12 +3,25 @@ import { Plus, Ticket } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { AppScreen, EmptyState, ErrorBanner } from '../../components';
+import {
+  AppScreen,
+  AppointmentQrTicket,
+  AppointmentQueueSummary,
+  Badge,
+  EmptyState,
+  ErrorBanner,
+} from '../../components';
 import { getCurrentStudentProfile } from '../../auth';
 import type { StudentProfile } from '../../auth';
 import { styles } from '../../styles';
+import { useStudentAppointments } from '../../use-student-appointments';
 
 export default function HomeScreen() {
+  const {
+    requests: appointments,
+    isLoading: appointmentsLoading,
+    error: appointmentsError,
+  } = useStudentAppointments();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileError, setProfileError] = useState<string>();
@@ -43,6 +56,15 @@ export default function HomeScreen() {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join('') || 'Q';
+  const upcomingAppointments = appointments
+    .filter((appointment) => appointment.status !== 'rejected' && appointment.status !== 'completed')
+    .sort(
+      (first, second) =>
+        first.date.localeCompare(second.date) ||
+        (first.queueNumber ?? Number.MAX_SAFE_INTEGER) -
+          (second.queueNumber ?? Number.MAX_SAFE_INTEGER),
+    )
+    .slice(0, 3);
 
   return (
     <AppScreen current="home">
@@ -67,10 +89,33 @@ export default function HomeScreen() {
           </View>
         )}
         {profileError ? <ErrorBanner message={profileError} /> : null}
-        <EmptyState
-          title="No upcoming appointments"
-          message="Your booked cashier visits will appear here."
-        />
+        {appointmentsError ? <ErrorBanner message={appointmentsError} /> : null}
+        <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
+        {appointmentsLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {upcomingAppointments.map((appointment) =>
+          appointment.status === 'approved' || appointment.status === 'serving' ? (
+            <View key={appointment.id} style={styles.upcomingAppointmentApproved}>
+              <AppointmentQueueSummary request={appointment} />
+              <AppointmentQrTicket request={appointment} />
+            </View>
+          ) : (
+            <View key={appointment.id} style={styles.appointmentStatusCard}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.itemTitle}>{appointment.service}</Text>
+                <Badge
+                  label={appointment.status[0].toUpperCase() + appointment.status.slice(1)}
+                  tone="warm"
+                />
+              </View>
+              <Text style={styles.itemSubtle}>
+                {appointment.date}
+              </Text>
+            </View>
+          ),
+        )}
+        {!appointmentsLoading && !upcomingAppointments.length ? (
+          <EmptyState title="No upcoming appointments" message="Your booked cashier visits will appear here." />
+        ) : null}
 
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionRow}>
@@ -89,7 +134,25 @@ export default function HomeScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>Recent Activity</Text>
-        <EmptyState title="No activity yet" message="Your completed appointments will appear here." />
+        {appointments
+          .filter((appointment) =>
+            ['completed', 'rejected', 'skipped'].includes(appointment.status),
+          )
+          .slice(0, 3)
+          .map((appointment) => (
+            <View key={appointment.id} style={styles.compactCard}>
+              <Text style={styles.itemTitle}>{appointment.service}</Text>
+              <Text style={styles.itemSubtle}>
+                {appointment.date} · {appointment.status[0].toUpperCase() + appointment.status.slice(1)}
+              </Text>
+            </View>
+          ))}
+        {!appointmentsLoading &&
+        !appointments.some((appointment) =>
+          ['completed', 'rejected', 'skipped'].includes(appointment.status),
+        ) ? (
+          <EmptyState title="No activity yet" message="Your completed appointments will appear here." />
+        ) : null}
       </ScrollView>
     </AppScreen>
   );

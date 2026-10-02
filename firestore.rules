@@ -30,8 +30,83 @@ service cloud.firestore {
         );
     }
 
+    function isStaff() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff';
+    }
+
+    function isStudent() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    function validQueueAssignment() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAll([
+          'queueNumber',
+          'studentsAhead',
+          'estimatedWaitMinutes'
+        ])
+        && request.resource.data['queueNumber'] is int
+        && request.resource.data['queueNumber'] > 0
+        && request.resource.data['studentsAhead'] is int
+        && request.resource.data['studentsAhead'] >= 0
+        && request.resource.data['estimatedWaitMinutes'] is int
+        && request.resource.data['estimatedWaitMinutes'] >= 0;
+    }
+
     function canReadAvailability() {
       return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function validAppointmentCapacityBooking(queueDate) {
+      let appointmentId = request.resource.data['lastBookingId'];
+      let appointmentPath = /databases/$(database)/documents/appointments/$(appointmentId);
+      return !exists(appointmentPath)
+        && existsAfter(appointmentPath)
+        && getAfter(appointmentPath).data['studentId'] == request.auth.uid
+        && getAfter(appointmentPath).data['date'] == queueDate
+        && getAfter(appointmentPath).data['status'] == 'pending';
+    }
+
+    function appointmentCapacityLimit() {
+      return exists(/databases/$(database)/documents/settings/queueCapacity)
+        ? get(/databases/$(database)/documents/settings/queueCapacity).data.dailyLimit
+        : 100;
+    }
+
+    function validAppointmentCapacityForCreate(appointmentId) {
+      let capacityPath = /databases/$(database)/documents/appointmentCapacity/$(request.resource.data.date);
+      return existsAfter(capacityPath)
+        && getAfter(capacityPath).data['lastBookingId'] == appointmentId
+        && getAfter(capacityPath).data['appointmentsBooked'] <= appointmentCapacityLimit();
+    }
+
+    function validAppointmentCapacityInitialization(queueDate) {
+      let appointmentPath = /databases/$(database)/documents/appointments/$(request.resource.data['lastBookingId']);
+      return request.resource.data['lastBookingId'] is string
+        && request.resource.data['lastBookingId'].size() > 0
+        && exists(appointmentPath)
+        && get(appointmentPath).data['date'] == queueDate
+        && get(appointmentPath).data['status'] != 'rejected';
+    }
+
+    function validStudentQueueCompletion(queueDate) {
+      let appointmentId = resource.data['nowServingId'];
+      let appointmentPath = /databases/$(database)/documents/appointments/$(appointmentId);
+      return isStudent()
+        && appointmentId is string
+        && exists(appointmentPath)
+        && get(appointmentPath).data['studentId'] == request.auth.uid
+        && get(appointmentPath).data['date'] == queueDate
+        && get(appointmentPath).data['status'] == 'serving'
+        && get(appointmentPath).data.keys().hasAny(['cashierFinishedAt'])
+        && getAfter(appointmentPath).data['status'] == 'completed'
+        && getAfter(appointmentPath).data['studentFinishedAt'] == request.time
+        && getAfter(appointmentPath).data['completedAt'] == request.time;
     }
 
     match /serviceAvailability/{serviceId} {
@@ -51,30 +126,41 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
-      allow read: if settingId == 'operatingHours' && canReadAvailability();
-      allow create, update: if settingId == 'operatingHours'
-        && canManageAvailability()
-        && request.resource.data.keys().hasOnly([
-          'enabledWeekdays',
-          'openTime',
-          'closeTime',
-          'slotMinutes',
-          'closedDates'
-        ])
-        && request.resource.data.keys().hasAll([
-          'enabledWeekdays',
-          'openTime',
-          'closeTime',
-          'slotMinutes',
-          'closedDates'
-        ])
-        && request.resource.data.enabledWeekdays is list
-        && request.resource.data.enabledWeekdays.size() <= 7
-        && request.resource.data.openTime is string
-        && request.resource.data.closeTime is string
-        && request.resource.data.slotMinutes in [15, 30, 60]
-        && request.resource.data.closedDates is list
-        && request.resource.data.closedDates.size() <= 366;
+      allow read: if settingId in ['operatingHours', 'queueCapacity'] && canReadAvailability();
+      allow create, update: if canManageAvailability()
+        && (
+          (
+            settingId == 'operatingHours'
+            && request.resource.data.keys().hasOnly([
+              'enabledWeekdays',
+              'openTime',
+              'closeTime',
+              'slotMinutes',
+              'closedDates'
+            ])
+            && request.resource.data.keys().hasAll([
+              'enabledWeekdays',
+              'openTime',
+              'closeTime',
+              'slotMinutes',
+              'closedDates'
+            ])
+            && request.resource.data.enabledWeekdays is list
+            && request.resource.data.enabledWeekdays.size() <= 7
+            && request.resource.data.openTime is string
+            && request.resource.data.closeTime is string
+            && request.resource.data.slotMinutes in [15, 30, 60]
+            && request.resource.data.closedDates is list
+            && request.resource.data.closedDates.size() <= 366
+          )
+          || (
+            settingId == 'queueCapacity'
+            && request.resource.data.keys().hasOnly(['dailyLimit'])
+            && request.resource.data['dailyLimit'] is int
+            && request.resource.data['dailyLimit'] > 0
+            && request.resource.data['dailyLimit'] <= 5000
+          )
+        );
       allow delete: if false;
     }
 
@@ -113,7 +199,9 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
         );
 
-      allow read: if isVerifiedOwner(userId);
+      allow read: if isVerifiedOwner(userId)
+        || isAdmin()
+        || (isStaff() && resource.data.role == 'staff');
 
       allow update: if (
           isVerifiedOwner(userId)
@@ -194,6 +282,303 @@ service cloud.firestore {
           && request.resource.data.status in ['approved', 'rejected']
         );
 
+      allow delete: if false;
+    }
+
+    match /appointments/{appointmentId} {
+      allow create: if isStudent()
+        && request.resource.data.keys().hasOnly([
+          'studentId',
+          'studentName',
+          'service',
+          'date',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.studentName
+          == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+        && request.resource.data['service'] is string
+        && request.resource.data['service'].size() > 0
+        && request.resource.data['date'] is string
+        && request.resource.data['status'] == 'pending'
+        && request.resource.data['createdAt'] == request.time
+        && validAppointmentCapacityForCreate(appointmentId);
+
+      allow read: if isStaff()
+        || (isStudent() && resource.data['studentId'] == request.auth.uid);
+
+      allow update: if (
+        isStaff()
+        && (
+          (
+            resource.data['status'] == 'pending'
+            && (
+              (
+                request.resource.data['status'] == 'rejected'
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+              )
+              || (
+                request.resource.data['status'] == 'approved'
+                && validQueueAssignment()
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                  'status',
+                  'queueNumber',
+                  'studentsAhead',
+                  'estimatedWaitMinutes'
+                ])
+              )
+            )
+          )
+          || (
+            resource.data['status'] == 'approved'
+            && !resource.data.keys().hasAny(['queueNumber'])
+            && request.resource.data['status'] == 'approved'
+            && validQueueAssignment()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'queueNumber',
+              'studentsAhead',
+              'estimatedWaitMinutes'
+            ])
+          )
+          || (
+            resource.data['status'] == 'approved'
+            && resource.data['queueNumber'] is int
+            && request.resource.data['status'] == 'approved'
+            && request.resource.data['nextAt'] == request.time
+            && request.resource.data['studentsAhead'] == 1
+            && request.resource.data['estimatedWaitMinutes'] is int
+            && request.resource.data['estimatedWaitMinutes'] >= 0
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'nextAt',
+              'studentsAhead',
+              'estimatedWaitMinutes'
+            ])
+          )
+          || (
+            resource.data['status'] == 'approved'
+            && !resource.data.keys().hasAny(['arrivedAt'])
+            && request.resource.data['status'] == 'approved'
+            && request.resource.data['arrivedAt'] == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['arrivedAt'])
+          )
+          || (
+            resource.data['status'] == 'approved'
+            && request.resource.data['status'] == 'serving'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'calledAt'
+            ])
+            && request.resource.data['calledAt'] == request.time
+          )
+          || (
+            resource.data['status'] == 'serving'
+            && !resource.data.keys().hasAny(['cashierFinishedAt'])
+            && request.resource.data['status'] == 'serving'
+            && request.resource.data['cashierFinishedAt'] == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'cashierFinishedAt'
+            ])
+          )
+          || (
+            resource.data['status'] == 'serving'
+            && !resource.data.keys().hasAny(['cashierFinishedAt'])
+            && resource.data.keys().hasAny(['studentFinishedAt'])
+            && request.resource.data['status'] == 'completed'
+            && request.resource.data['cashierFinishedAt'] == request.time
+            && request.resource.data['completedAt'] == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'cashierFinishedAt',
+              'status',
+              'completedAt'
+            ])
+          )
+          || (
+            resource.data['status'] == 'serving'
+            && !resource.data.keys().hasAny(['cashierFinishedAt'])
+            && !resource.data.keys().hasAny(['studentFinishedAt'])
+            && request.resource.data['status'] == 'skipped'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'skippedAt'
+            ])
+            && request.resource.data['skippedAt'] == request.time
+          )
+          || (
+            resource.data['status'] == 'skipped'
+            && request.resource.data['status'] == 'approved'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'queueNumber',
+              'skippedAt'
+            ])
+            && request.resource.data['queueNumber'] is int
+            && request.resource.data['queueNumber'] > 0
+            && request.resource.data['skippedAt'] == null
+          )
+          || (
+            resource.data['status'] == 'approved'
+            && request.resource.data['status'] == 'rejected'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          )
+        )
+      )
+      || (
+        isStudent()
+        && resource.data['studentId'] == request.auth.uid
+        && resource.data['status'] == 'serving'
+        && !resource.data.keys().hasAny(['studentFinishedAt'])
+        && (
+          (
+            !resource.data.keys().hasAny(['cashierFinishedAt'])
+            && request.resource.data['status'] == 'serving'
+            && request.resource.data['studentFinishedAt'] == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'studentFinishedAt'
+            ])
+          )
+          || (
+            resource.data.keys().hasAny(['cashierFinishedAt'])
+            && request.resource.data['status'] == 'completed'
+            && request.resource.data['studentFinishedAt'] == request.time
+            && request.resource.data['completedAt'] == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'studentFinishedAt',
+              'status',
+              'completedAt'
+            ])
+          )
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    match /appointmentQueues/{queueDate} {
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly([
+          'lastQueueNumber',
+          'nowServingId',
+          'revision',
+          'servedCount',
+          'updatedAt'
+        ])
+        && (
+          !request.resource.data.keys().hasAny(['lastQueueNumber'])
+          || (request.resource.data['lastQueueNumber'] is int
+            && request.resource.data['lastQueueNumber'] > 0)
+        )
+        && (
+          !request.resource.data.keys().hasAny(['nowServingId'])
+          || request.resource.data['nowServingId'] == null
+          || request.resource.data['nowServingId'] is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(['revision'])
+          || request.resource.data['revision'] is int
+        )
+        && (
+          !request.resource.data.keys().hasAny(['servedCount'])
+          || request.resource.data['servedCount'] is int
+        )
+        && request.resource.data['updatedAt'] == request.time;
+      allow update: if (
+          isStaff()
+          && request.resource.data.keys().hasOnly([
+            'lastQueueNumber',
+            'nowServingId',
+            'revision',
+            'servedCount',
+            'updatedAt'
+          ])
+          && (
+            !request.resource.data.keys().hasAny(['lastQueueNumber'])
+            || (request.resource.data['lastQueueNumber'] is int
+              && request.resource.data['lastQueueNumber'] > 0)
+          )
+          && (
+            !request.resource.data.keys().hasAny(['nowServingId'])
+            || request.resource.data['nowServingId'] == null
+            || request.resource.data['nowServingId'] is string
+          )
+          && (
+            !request.resource.data.keys().hasAny(['revision'])
+            || request.resource.data['revision'] is int
+          )
+          && (
+            !request.resource.data.keys().hasAny(['servedCount'])
+            || request.resource.data['servedCount'] is int
+          )
+          && request.resource.data['updatedAt'] == request.time
+        )
+        || (
+          validStudentQueueCompletion(queueDate)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nowServingId',
+            'servedCount',
+            'updatedAt'
+          ])
+          && request.resource.data['nowServingId'] == null
+          && request.resource.data['servedCount'] == resource.data.get('servedCount', 0) + 1
+          && request.resource.data['updatedAt'] == request.time
+        );
+      allow delete: if false;
+    }
+
+    match /appointmentCapacity/{queueDate} {
+      allow read: if isStaff() || isStudent();
+      allow create: if isStudent()
+        && request.resource.data.keys().hasOnly([
+          'appointmentsBooked',
+          'lastBookingId',
+          'initialized',
+          'updatedAt'
+        ])
+        && request.resource.data['appointmentsBooked'] == 1
+        && request.resource.data['appointmentsBooked'] <= appointmentCapacityLimit()
+        && request.resource.data['lastBookingId'] is string
+        && request.resource.data['initialized'] == false
+        && request.resource.data['updatedAt'] == request.time
+        && validAppointmentCapacityBooking(queueDate);
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly([
+          'appointmentsBooked',
+          'lastBookingId',
+          'initialized',
+          'updatedAt'
+        ])
+        && request.resource.data['appointmentsBooked'] is int
+        && request.resource.data['appointmentsBooked'] >= 0
+        && request.resource.data['initialized'] == true
+        && request.resource.data['updatedAt'] == request.time
+        && validAppointmentCapacityInitialization(queueDate);
+      allow update: if (
+          isStudent()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'appointmentsBooked',
+            'lastBookingId',
+            'updatedAt'
+          ])
+          && request.resource.data['appointmentsBooked'] == resource.data['appointmentsBooked'] + 1
+          && request.resource.data['appointmentsBooked'] <= appointmentCapacityLimit()
+          && request.resource.data['lastBookingId'] != resource.data['lastBookingId']
+          && request.resource.data['updatedAt'] == request.time
+          && validAppointmentCapacityBooking(queueDate)
+        )
+        || (
+          isStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'appointmentsBooked',
+            'lastBookingId',
+            'initialized',
+            'updatedAt'
+          ])
+          && request.resource.data['appointmentsBooked'] is int
+          && request.resource.data['appointmentsBooked'] >= 0
+          && request.resource.data['initialized'] is bool
+          && request.resource.data['updatedAt'] == request.time
+        );
       allow delete: if false;
     }
 

@@ -8,8 +8,10 @@ import type { OperatingHours } from './schedule-utils';
 export {
   createTimeSlots,
   defaultOperatingHours,
+  formatTimeForDisplay,
   formatLocalDate,
   getCalendarDates,
+  parseTimeFromDisplay,
   parseTimeToMinutes,
 } from './schedule-utils';
 export type { OperatingHours } from './schedule-utils';

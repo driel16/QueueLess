@@ -43,7 +43,7 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       await signInForRole(email, password, 'student');
-      router.replace('/home');
+      router.push('/home');
     } catch (error) {
       setAuthError(getAuthErrorMessage(error, 'login'));
       setRequiresEmailVerification(error instanceof EmailVerificationRequiredError);

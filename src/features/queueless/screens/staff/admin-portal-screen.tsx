@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
 import { AtSign, Check, RefreshCw, ShieldCheck, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorBanner, Field } from '../../components';
+import { getFirebaseAuth } from '@/lib/firebase';
 import {
   ADMIN_EMAIL,
   getAuthErrorMessage,
@@ -17,15 +18,19 @@ import type { StaffApplication } from '../../auth';
 import { styles } from '../../styles';
 
 export default function AdminPortalScreen() {
+  const savedAdmin = (() => {
+    const user = getFirebaseAuth().currentUser;
+    return user?.email?.toLowerCase() === ADMIN_EMAIL && user.emailVerified;
+  })();
   const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(savedAdmin);
+  const [isLoading, setIsLoading] = useState(savedAdmin);
   const [applications, setApplications] = useState<StaffApplication[]>([]);
   const [authError, setAuthError] = useState<string>();
   const [actionError, setActionError] = useState<string>();
 
-  const refreshApplications = async () => {
+  const refreshApplications = useCallback(async () => {
     setIsLoading(true);
     setActionError(undefined);
     try {
@@ -41,7 +46,38 @@ export default function AdminPortalScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let isMounted = true;
+
+    getStaffApplications()
+      .then((result) => {
+        if (isMounted) {
+          setApplications(result);
+          setActionError(undefined);
+        }
+      })
+      .catch((error: unknown) => {
+        if (isMounted) {
+          setActionError(
+            error instanceof FirebaseError
+              ? getAuthErrorMessage(error, 'login')
+              : error instanceof Error
+                ? error.message
+                : 'Could not load staff applications.',
+          );
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin]);
 
   const handleSignIn = async () => {
     setAuthError(undefined);
@@ -52,7 +88,6 @@ export default function AdminPortalScreen() {
       await signInAsAdmin(email, password);
       setPassword('');
       setIsAdmin(true);
-      await refreshApplications();
     } catch (error) {
       setAuthError(
         error instanceof FirebaseError

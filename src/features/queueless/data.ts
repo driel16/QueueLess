@@ -51,25 +51,3 @@ export const staffTabs: { key: StaffRoute; label: string; icon: LucideIcon; href
   { key: 'services', label: 'Services', icon: CalendarDays, href: '/service-management' },
   { key: 'settings', label: 'Settings', icon: Settings, href: '/staff-settings' },
 ];
-
-export const appointmentRequests: {
-  ticket: string;
-  name: string;
-  service: string;
-  time: string;
-  status: string;
-}[] = [];
-
-export const activeQueue: {
-  ticket: string;
-  name: string;
-  service: string;
-  status: string;
-}[] = [];
-
-export const staffMembers: {
-  initials: string;
-  name: string;
-  role: string;
-  status: string;
-}[] = [];

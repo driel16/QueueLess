@@ -38,6 +38,23 @@ export function parseTimeToMinutes(time: string) {
   return match ? Number(match[1]) * 60 + Number(match[2]) : undefined;
 }
 
+export function formatTimeForDisplay(time: string) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!match) return time;
+
+  const hour = Number(match[1]);
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${match[2]} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+export function parseTimeFromDisplay(time: string) {
+  const match = /^(1[0-2]|0?[1-9]):([0-5]\d)\s*(AM|PM)$/i.exec(time.trim());
+  if (!match) return undefined;
+
+  const hour = Number(match[1]) % 12 + (match[3].toUpperCase() === 'PM' ? 12 : 0);
+  return `${String(hour).padStart(2, '0')}:${match[2]}`;
+}
+
 export function createTimeSlots(hours: OperatingHours, date?: string, now = new Date()) {
   const openAt = parseTimeToMinutes(hours.openTime);
   const closeAt = parseTimeToMinutes(hours.closeTime);
