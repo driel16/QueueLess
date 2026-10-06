@@ -26,10 +26,14 @@ import {
 } from '../../appointment-requests';
 import { formatLocalDate } from '../../schedule-utils';
 import { services } from '../../data';
-import { styles } from '../../styles';
+import { useQueuelessStyles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
 import { useStudentAppointments } from '../../use-student-appointments';
 
 export function RegisterScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
@@ -70,7 +74,7 @@ export function RegisterScreen() {
           <View style={styles.verificationScreen}>
             <View style={styles.verificationHero}>
               <View style={styles.verificationIcon}>
-                <MailCheck size={36} color="#0F8F8B" strokeWidth={1.8} />
+                <MailCheck size={36} color={palette.greenDark} strokeWidth={1.8} />
               </View>
               <Text style={styles.verificationTitle}>Check your inbox</Text>
               <Text style={styles.verificationSubtitle}>
@@ -79,7 +83,7 @@ export function RegisterScreen() {
             </View>
             <View style={styles.verificationEmail}>
               <View style={styles.verificationEmailIcon}>
-                <AtSign size={18} color="#0F8F8B" />
+                <AtSign size={18} color={palette.greenDark} />
               </View>
               <View style={styles.verificationEmailCopy}>
                 <Text style={styles.verificationHint}>Verification link sent to</Text>
@@ -89,7 +93,7 @@ export function RegisterScreen() {
             <View style={styles.verificationSteps}>
               <View style={styles.verificationStep}>
                 <View style={styles.verificationStepIcon}>
-                  <Check size={15} color="#0F8F8B" strokeWidth={3} />
+                  <Check size={15} color={palette.greenDark} strokeWidth={3} />
                 </View>
                 <Text style={styles.verificationStepText}>Create your student account</Text>
               </View>
@@ -132,7 +136,7 @@ export function RegisterScreen() {
                 }
               }}>
               {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={palette.white} />
               ) : (
                 <Text style={styles.primaryButtonText}>Resend verification link</Text>
               )}
@@ -165,19 +169,19 @@ export function RegisterScreen() {
                   height: 24,
                   borderRadius: 6,
                   borderWidth: 2,
-                  borderColor: acceptedTerms ? '#0F8F8B' : '#AAB6C6',
-                  backgroundColor: acceptedTerms ? '#0F8F8B' : '#FFFFFF',
+                  borderColor: acceptedTerms ? palette.greenDark : palette.neutralBorder,
+                  backgroundColor: acceptedTerms ? palette.greenDark : palette.card,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                {acceptedTerms ? <Check size={16} color="#FFFFFF" strokeWidth={3} /> : null}
+                {acceptedTerms ? <Check size={16} color={palette.white} strokeWidth={3} /> : null}
               </View>
               <Text style={[styles.itemSubtle, { flex: 1, fontSize: 14 }]}>
                 I agree to the Terms & Conditions.
               </Text>
             </Pressable>
             {submitted && !acceptedTerms ? (
-              <Text style={{ color: '#D74C5C', fontSize: 13, fontWeight: '700' }}>
+              <Text style={{ color: palette.danger, fontSize: 13, fontWeight: '700' }}>
                 You must accept the Terms & Conditions to create an account.
               </Text>
             ) : null}
@@ -185,7 +189,7 @@ export function RegisterScreen() {
               accessibilityRole="link"
               onPress={() => router.push('/terms')}
               style={{ minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' }}>
-              <Text style={{ color: '#0F8F8B', fontSize: 14, fontWeight: '800' }}>
+              <Text style={{ color: palette.greenDark, fontSize: 14, fontWeight: '800' }}>
                 Read Terms & Conditions
               </Text>
             </Pressable>
@@ -215,7 +219,7 @@ export function RegisterScreen() {
                 }
               }}>
               {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={palette.white} />
               ) : (
                 <Text style={styles.primaryButtonText}>Create Account</Text>
               )}
@@ -228,6 +232,8 @@ export function RegisterScreen() {
 }
 
 export function ServiceDetailsScreen() {
+  const styles = useQueuelessStyles();
+
   const { serviceTitle } = useLocalSearchParams<{ serviceTitle?: string }>();
   const service = services.find((item) => item.title === serviceTitle);
 
@@ -261,6 +267,9 @@ export function ServiceDetailsScreen() {
 }
 
 export function AppointmentRequestScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { date, requestId, serviceTitle } = useLocalSearchParams<{
     date?: string;
     requestId?: string;
@@ -341,7 +350,7 @@ export function AppointmentRequestScreen() {
             }
           }}>
           {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={palette.white} />
           ) : (
             <Text style={styles.primaryButtonText}>
               {requestId ? 'Confirm Reschedule' : 'Submit Request'}
@@ -354,6 +363,8 @@ export function AppointmentRequestScreen() {
 }
 
 export function AppointmentConfirmationScreen() {
+  const styles = useQueuelessStyles();
+
   const { ticket } = useLocalSearchParams<{ ticket?: string }>();
   const { requests, isLoading, error } = useStudentAppointments();
   const request = requests.find((item) => item.id === ticket);
@@ -424,6 +435,9 @@ export function AppointmentConfirmationScreen() {
 }
 
 export function AppointmentStatusScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { requests, isLoading, error: loadError } = useStudentAppointments();
   const hasApprovedRequest = requests.some((request) => request.status === 'approved');
 
@@ -432,7 +446,7 @@ export function AppointmentStatusScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Appointment Status" subtitle="Latest request update" backTo="/home" />
         {loadError ? <ErrorBanner message={loadError} /> : null}
-        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {requests.length ? (
           requests.map((request) => (
             <View key={request.id} style={styles.appointmentStatusCard}>
@@ -469,6 +483,9 @@ export function AppointmentStatusScreen() {
 }
 
 export function MyAppointmentsScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { requests, isLoading, error } = useStudentAppointments();
   const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
   const [processingId, setProcessingId] = useState<string>();
@@ -481,7 +498,7 @@ export function MyAppointmentsScreen() {
         <Header title="My Queue Requests" subtitle="Upcoming and recent requests" backTo="/home" />
         {error ? <ErrorBanner message={error} /> : null}
         {actionError ? <ErrorBanner message={actionError} /> : null}
-        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {requests.map((request) => (
           <View key={request.id} style={styles.appointmentStatusCard}>
             <View style={styles.rowBetween}>
@@ -557,7 +574,7 @@ export function MyAppointmentsScreen() {
                       }
                     }}>
                     {processingId === request.id ? (
-                      <ActivityIndicator color="#FFFFFF" />
+                      <ActivityIndicator color={palette.white} />
                     ) : (
                       <Text style={styles.primaryButtonText}>Confirm cancel</Text>
                     )}
@@ -591,17 +608,23 @@ export function MyAppointmentsScreen() {
 }
 
 export function QueueHistoryScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { requests, isLoading, error } = useStudentAppointments();
   const history = requests.filter(
-    (request) => request.status === 'completed' || request.status === 'skipped',
+    (request) =>
+      request.status === 'completed' ||
+      request.status === 'skipped' ||
+      request.status === 'no-show',
   );
 
   return (
     <AppScreen current="profile">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header title="Queue History" subtitle="Completed cashier transactions" backTo="/profile" />
+        <Header title="Queue History" subtitle="Past visits and missed appointments" backTo="/profile" />
         {error ? <ErrorBanner message={error} /> : null}
-        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {history.map((request) => (
           <View key={request.id} style={styles.compactCard}>
             <View style={styles.rowBetween}>
@@ -622,7 +645,10 @@ export function QueueHistoryScreen() {
           </View>
         ))}
         {!isLoading && !error && !history.length ? (
-          <EmptyState title="No queue history" message="Completed queue visits will appear here." />
+          <EmptyState
+            title="No queue history"
+            message="Completed visits and missed appointments will appear here."
+          />
         ) : null}
       </ScrollView>
     </AppScreen>
@@ -630,6 +656,9 @@ export function QueueHistoryScreen() {
 }
 
 export function NotificationsScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { requests, isLoading, error } = useStudentAppointments();
   const notificationRequests = requests.filter((request) => request.status !== 'pending');
   const today = formatLocalDate(new Date());
@@ -639,7 +668,7 @@ export function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Notifications" subtitle="Queue and appointment alerts" backTo="/home" />
         {error ? <ErrorBanner message={error} /> : null}
-        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {notificationRequests.length ? (
           notificationRequests.map((request) => (
             <View key={request.id} style={styles.appointmentStatusCard}>
@@ -648,6 +677,8 @@ export function NotificationsScreen() {
                   ? 'Appointment not approved'
                   : request.status === 'cancelled'
                     ? 'Appointment cancelled'
+                    : request.status === 'no-show'
+                      ? 'Appointment marked as no-show'
                   : request.status === 'completed'
                     ? 'Cashier visit completed'
                     : request.status === 'skipped'
@@ -676,6 +707,11 @@ export function NotificationsScreen() {
               ) : request.status === 'approved' ? (
                 <Text style={styles.itemSubtle}>
                     Your appointment has been approved. Check your queue position below.
+                </Text>
+              ) : request.status === 'no-show' ? (
+                <Text style={styles.itemSubtle}>
+                  Your appointment was not checked in by its scheduled date. You can book another
+                  appointment now.
                 </Text>
               ) : null}
               {request.status === 'approved' || request.status === 'serving' ? (

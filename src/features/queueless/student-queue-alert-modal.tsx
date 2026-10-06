@@ -1,6 +1,6 @@
 import { Modal, Pressable, Text, View } from 'react-native';
 
-import { palette } from './palette';
+import { useQueuelessPalette } from './palette';
 import type { StudentQueueAlert } from './use-student-queue-alerts';
 
 type StudentQueueAlertModalProps = {
@@ -12,6 +12,8 @@ export function StudentQueueAlertModal({
   notifications,
   onDismiss,
 }: StudentQueueAlertModalProps) {
+  const palette = useQueuelessPalette();
+
   return (
     <Modal
       animationType="fade"
@@ -23,7 +25,7 @@ export function StudentQueueAlertModal({
           flex: 1,
           justifyContent: 'center',
           padding: 24,
-          backgroundColor: 'rgba(18, 33, 59, 0.48)',
+          backgroundColor: palette.modalBackdrop,
         }}>
         <View
           accessibilityRole="alert"
@@ -49,7 +51,7 @@ export function StudentQueueAlertModal({
               backgroundColor: palette.greenDark,
             }}
             onPress={onDismiss}>
-            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }}>
+            <Text style={{ color: palette.white, fontSize: 15, fontWeight: '900' }}>
               {notifications.length > 1 ? 'Next alert' : 'Got it'}
             </Text>
           </Pressable>

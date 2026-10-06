@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Header } from '../../components';
 import { TERMS_VERSION, termsSections } from '../../terms';
-import { styles } from '../../styles';
+import { useQueuelessStyles } from '../../styles';
 
 export default function TermsScreen() {
+  const styles = useQueuelessStyles();
+
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

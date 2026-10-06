@@ -10,12 +10,14 @@ import { staffTabs, tabs } from './data';
 import { createAppointmentQrPayload } from './appointment-qr';
 import { confirmStudentTransactionFinished } from './appointment-requests';
 import type { AppointmentRequest } from './appointment-requests';
-import { palette } from './palette';
+import { palette as fixedPalette, qrCodePalette, useQueuelessPalette } from './palette';
 import { formatLocalDate } from './schedule-utils';
-import { styles } from './styles';
+import { useQueuelessStyles } from './styles';
 import type { AppRoute, StaffRoute } from './types';
 
 export function AppScreen({ children, current }: { children: React.ReactNode; current: AppRoute }) {
+  const styles = useQueuelessStyles();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.screen}>
@@ -29,6 +31,8 @@ export function AppScreen({ children, current }: { children: React.ReactNode; cu
 }
 
 export function StaffScreen({ children, current }: { children: React.ReactNode; current: StaffRoute }) {
+  const styles = useQueuelessStyles();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.screen}>
@@ -62,6 +66,9 @@ export function Field({
   error?: string;
   icon?: LucideIcon;
 }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState(false);
   const Icon = icon ?? (secure ? LockKeyhole : AtSign);
@@ -112,6 +119,9 @@ export function Field({
 }
 
 export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <View style={styles.errorBanner} accessibilityRole="alert">
       <AlertCircle size={18} color={palette.danger} />
@@ -130,6 +140,9 @@ export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss
 }
 
 export function EmptyState({ title, message }: { title: string; message: string }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <View style={styles.emptyState}>
       <View style={styles.emptyStateIcon}>
@@ -142,6 +155,9 @@ export function EmptyState({ title, message }: { title: string; message: string 
 }
 
 export function Header({ title, subtitle, backTo }: { title: string; subtitle: string; backTo: string }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <View style={styles.header}>
       <Pressable
@@ -160,6 +176,9 @@ export function Header({ title, subtitle, backTo }: { title: string; subtitle: s
 }
 
 export function StaffHeader({ title, subtitle, backTo }: { title: string; subtitle: string; backTo?: string }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <View style={styles.staffHeader}>
       <View style={styles.staffTitleGroup}>
@@ -180,6 +199,8 @@ export function StaffHeader({ title, subtitle, backTo }: { title: string; subtit
 }
 
 export function Badge({ label, tone }: { label: string; tone: 'warm' | 'green' }) {
+  const styles = useQueuelessStyles();
+
   return (
     <View style={[styles.badge, tone === 'green' ? styles.badgeGreen : styles.badgeWarm]}>
       <Text style={[styles.badgeText, tone === 'green' ? styles.badgeGreenText : styles.badgeWarmText]}>
@@ -190,6 +211,8 @@ export function Badge({ label, tone }: { label: string; tone: 'warm' | 'green' }
 }
 
 export function QueueProgress({ step }: { step: number }) {
+  const styles = useQueuelessStyles();
+
   const steps = ['Requested', 'Approved', 'Checked in', 'Being served'];
 
   return (
@@ -236,6 +259,8 @@ export function QueueProgress({ step }: { step: number }) {
 }
 
 export function AppointmentQueueSummary({ request }: { request: AppointmentRequest }) {
+  const styles = useQueuelessStyles();
+
   const [isConfirmingFinished, setIsConfirmingFinished] = useState(false);
   const [finishError, setFinishError] = useState<string>();
   const progressStep = request.status === 'serving' ? 3 : request.arrivedAt ? 2 : 1;
@@ -342,7 +367,7 @@ export function AppointmentQueueSummary({ request }: { request: AppointmentReque
                 }
               }}>
               {isConfirmingFinished ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={fixedPalette.white} />
               ) : (
                 <Text style={styles.primaryButtonText}>Confirm Transaction Finished</Text>
               )}
@@ -355,6 +380,8 @@ export function AppointmentQueueSummary({ request }: { request: AppointmentReque
 }
 
 export function AppointmentQrTicket({ request }: { request: AppointmentRequest }) {
+  const styles = useQueuelessStyles();
+
   if (request.status !== 'approved' || request.arrivedAt) return null;
 
   return (
@@ -366,8 +393,8 @@ export function AppointmentQrTicket({ request }: { request: AppointmentRequest }
       <QRCode
         value={createAppointmentQrPayload(request.id)}
         size={200}
-        color="#13223D"
-        backgroundColor="#FFFFFF"
+        color={qrCodePalette.ink}
+        backgroundColor={qrCodePalette.paper}
         ecl="M"
       />
       <Text style={styles.itemSubtle}>Appointment ID: {request.id}</Text>
@@ -376,6 +403,9 @@ export function AppointmentQrTicket({ request }: { request: AppointmentRequest }
 }
 
 function BottomNav({ current }: { current: AppRoute }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <View style={styles.bottomBar} accessibilityRole="tablist" accessibilityLabel="Student navigation">
       {tabs.map((tab) => {
@@ -389,7 +419,7 @@ function BottomNav({ current }: { current: AppRoute }) {
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: active }}>
-            <Icon size={20} color={active ? palette.green : palette.muted} strokeWidth={2.2} />
+            <Icon size={20} color={active ? palette.blue : palette.muted} strokeWidth={2.2} />
             <Text style={[styles.tabLabel, active && styles.tabActive]}>{tab.label}</Text>
           </Pressable>
         );
@@ -399,6 +429,9 @@ function BottomNav({ current }: { current: AppRoute }) {
 }
 
 function StaffBottomNav({ current }: { current: StaffRoute }) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <View style={styles.bottomBar} accessibilityRole="tablist" accessibilityLabel="Staff navigation">
       {staffTabs.map((tab) => {
@@ -411,7 +444,7 @@ function StaffBottomNav({ current }: { current: StaffRoute }) {
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: current === tab.key }}>
-            <Icon size={20} color={current === tab.key ? palette.green : palette.muted} strokeWidth={2.2} />
+            <Icon size={20} color={current === tab.key ? palette.blue : palette.muted} strokeWidth={2.2} />
             <Text style={[styles.tabLabel, current === tab.key && styles.tabActive]}>{tab.label}</Text>
           </Pressable>
         );

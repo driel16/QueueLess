@@ -13,10 +13,14 @@ import {
 } from '../../components';
 import { getCurrentStudentProfile } from '../../auth';
 import type { StudentProfile } from '../../auth';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 import { useStudentAppointments } from '../../use-student-appointments';
 
 export default function HomeScreen() {
+  const palette = useQueuelessPalette();
+  const styles = useQueuelessStyles();
+
   const {
     requests: appointments,
     isLoading: appointmentsLoading,
@@ -76,7 +80,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.profileLoading}>
-            <ActivityIndicator color="#0F8F8B" />
+            <ActivityIndicator color={palette.greenDark} />
             <Text style={styles.cardSubtle}>Loading your account...</Text>
           </View>
         ) : (
@@ -96,7 +100,7 @@ export default function HomeScreen() {
         {profileError ? <ErrorBanner message={profileError} /> : null}
         {appointmentsError ? <ErrorBanner message={appointmentsError} /> : null}
         <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
-        {appointmentsLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {appointmentsLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {upcomingAppointments.map((appointment) =>
           appointment.status === 'approved' || appointment.status === 'serving' ? (
             <View key={appointment.id} style={styles.upcomingAppointmentApproved}>

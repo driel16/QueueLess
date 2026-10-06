@@ -11,9 +11,13 @@ import {
   resendVerificationEmail,
   signInForRole,
 } from '../../auth';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 
 export default function LoginScreen() {
+  const palette = useQueuelessPalette();
+  const styles = useQueuelessStyles();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -125,7 +129,7 @@ export default function LoginScreen() {
             disabled={isLoading}
             accessibilityRole="button">
             {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={palette.white} />
             ) : (
               <Text style={styles.primaryButtonText}>Log In</Text>
             )}

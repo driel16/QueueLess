@@ -11,10 +11,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '../../brand-mark';
 import { ADMIN_EMAIL } from '../../auth';
 import { ErrorBanner } from '../../components';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 import { getFirebaseAuth, getFirebaseFirestore } from '@/lib/firebase';
 
 export default function SplashScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [sessionError, setSessionError] = useState<string>();
 
@@ -82,7 +86,7 @@ export default function SplashScreen() {
             <BrandMark />
           </View>
           <Text style={styles.brand}>QueueLess</Text>
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={palette.white} />
         </View>
       </SafeAreaView>
     );
@@ -120,7 +124,7 @@ export default function SplashScreen() {
                 <Text style={styles.splashStartButtonSubtitle}>Choose how you want to continue</Text>
               </View>
               <View style={styles.splashStartButtonArrow}>
-                <ArrowRight size={21} color="#0B716E" strokeWidth={2.4} />
+                <ArrowRight size={21} color={palette.splashArrow} strokeWidth={2.4} />
               </View>
             </Animated.View>
           </Pressable>

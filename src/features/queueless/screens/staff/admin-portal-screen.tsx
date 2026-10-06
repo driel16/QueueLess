@@ -15,9 +15,13 @@ import {
   signInAsAdmin,
 } from '../../auth';
 import type { StaffApplication } from '../../auth';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 
 export default function AdminPortalScreen() {
+  const palette = useQueuelessPalette();
+  const styles = useQueuelessStyles();
+
   const savedAdmin = (() => {
     const user = getFirebaseAuth().currentUser;
     return user?.email?.toLowerCase() === ADMIN_EMAIL && user.emailVerified;
@@ -128,7 +132,7 @@ export default function AdminPortalScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={styles.adminPortalHeader}>
           <View style={styles.adminPortalIcon}>
-            <ShieldCheck size={25} color="#FFFFFF" />
+            <ShieldCheck size={25} color={palette.white} />
           </View>
           <Text style={styles.h1}>Staff Applications</Text>
           <Text style={styles.mutedCenter}>
@@ -148,9 +152,9 @@ export default function AdminPortalScreen() {
                 accessibilityLabel="Refresh staff applications"
                 onPress={() => void refreshApplications()}>
                 {isLoading ? (
-                  <ActivityIndicator color="#203F91" />
+                  <ActivityIndicator color={palette.blue} />
                 ) : (
-                  <RefreshCw size={17} color="#203F91" />
+                  <RefreshCw size={17} color={palette.blue} />
                 )}
               </Pressable>
             </View>
@@ -177,7 +181,7 @@ export default function AdminPortalScreen() {
                     disabled={isLoading}
                     accessibilityRole="button"
                     onPress={() => void handleReview(application, 'approved')}>
-                    <Check size={16} color="#FFFFFF" strokeWidth={3} />
+                    <Check size={16} color={palette.white} strokeWidth={3} />
                     <Text style={styles.adminActionText}>Approve</Text>
                   </Pressable>
                   <Pressable
@@ -185,7 +189,7 @@ export default function AdminPortalScreen() {
                     disabled={isLoading}
                     accessibilityRole="button"
                     onPress={() => void handleReview(application, 'rejected')}>
-                    <X size={16} color="#D74C5C" strokeWidth={2.5} />
+                    <X size={16} color={palette.danger} strokeWidth={2.5} />
                     <Text style={styles.adminRejectText}>Reject</Text>
                   </Pressable>
                 </View>
@@ -224,7 +228,7 @@ export default function AdminPortalScreen() {
               accessibilityRole="button"
               onPress={() => void handleSignIn()}>
               {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={palette.white} />
               ) : (
                 <Text style={styles.primaryButtonText}>Sign In as Admin</Text>
               )}

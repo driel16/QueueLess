@@ -4,15 +4,18 @@ import {
   getDoc,
   getDocs,
   increment,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
   setDoc,
+  startAfter,
   where,
   writeBatch,
 } from 'firebase/firestore';
-import type { Unsubscribe } from 'firebase/firestore';
+import type { DocumentData, QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore';
 
 import { getCurrentStudentProfile } from './auth';
 import {
@@ -31,6 +34,7 @@ export type AppointmentRequestStatus =
   | 'completed'
   | 'skipped'
   | 'cancelled'
+  | 'no-show'
   | 'rejected';
 
 export type AppointmentRequest = {
@@ -51,6 +55,14 @@ export type AppointmentRequest = {
   calledAt?: Date | null;
   completedAt?: Date | null;
   skippedAt?: Date | null;
+  noShowAt?: Date | null;
+};
+
+export type AppointmentRequestCursor = QueryDocumentSnapshot<DocumentData>;
+export type AppointmentRequestPage = {
+  requests: AppointmentRequest[];
+  cursor?: AppointmentRequestCursor;
+  hasMore: boolean;
 };
 
 export type QueueCapacity = { dailyLimit: number };
@@ -75,6 +87,7 @@ function toAppointmentRequest(id: string, data: Record<string, unknown>): Appoin
       data.status === 'completed' ||
       data.status === 'skipped' ||
       data.status === 'cancelled' ||
+      data.status === 'no-show' ||
       data.status === 'rejected'
     ) ||
     (data.queueNumber !== undefined && !Number.isInteger(data.queueNumber)) ||
@@ -101,6 +114,7 @@ function toAppointmentRequest(id: string, data: Record<string, unknown>): Appoin
     calledAt: toDate(data.calledAt),
     completedAt: toDate(data.completedAt),
     skippedAt: toDate(data.skippedAt),
+    noShowAt: toDate(data.noShowAt),
     arrivedAt: toDate(data.arrivedAt),
     nextAt: toDate(data.nextAt),
     studentFinishedAt: toDate(data.studentFinishedAt),
@@ -356,10 +370,22 @@ export async function rescheduleAppointmentRequest(requestId: string, newDate: s
 }
 
 export function subscribeToAppointmentRequests(
-  onRequests: (requests: AppointmentRequest[]) => void,
+  onRequests: (requests: AppointmentRequest[], cursor?: AppointmentRequestCursor) => void,
   onError: (error: Error) => void,
+  options: {
+    status?: AppointmentRequestStatus;
+    date?: string;
+    fromDate?: string;
+    pageSize?: number;
+  } = {},
 ): Unsubscribe {
-  const requestsQuery = query(collection(getFirebaseFirestore(), 'appointments'));
+  const requestsQuery = query(
+    collection(getFirebaseFirestore(), 'appointments'),
+    ...(options.status ? [where('status', '==', options.status)] : []),
+    ...(options.date ? [where('date', '==', options.date)] : []),
+    ...(options.fromDate ? [where('date', '>=', options.fromDate)] : []),
+    ...(options.pageSize ? [orderBy('date', 'desc'), limit(options.pageSize)] : []),
+  );
   return onSnapshot(
     requestsQuery,
     (snapshot) => {
@@ -373,13 +399,39 @@ export function subscribeToAppointmentRequests(
             (second.queueNumber ?? 0) - (first.queueNumber ?? 0) ||
             (second.createdAt?.getTime() ?? 0) - (first.createdAt?.getTime() ?? 0),
         );
-        onRequests(requests);
+        onRequests(requests, snapshot.docs[snapshot.docs.length - 1]);
       } catch (error) {
         onError(error instanceof Error ? error : new Error('Could not read appointment requests.'));
       }
     },
     onError,
   );
+}
+
+export async function getOlderAppointmentRequests(
+  cursor: AppointmentRequestCursor,
+  pageSize: number,
+): Promise<AppointmentRequestPage> {
+  const snapshot = await getDocs(
+    query(
+      collection(getFirebaseFirestore(), 'appointments'),
+      orderBy('date', 'desc'),
+      startAfter(cursor),
+      limit(pageSize),
+    ),
+  );
+  const requests = snapshot.docs.map((item) => toAppointmentRequest(item.id, item.data()));
+  requests.sort(
+    (first, second) =>
+      second.date.localeCompare(first.date) ||
+      (second.queueNumber ?? 0) - (first.queueNumber ?? 0) ||
+      (second.createdAt?.getTime() ?? 0) - (first.createdAt?.getTime() ?? 0),
+  );
+  return {
+    requests,
+    cursor: snapshot.docs[snapshot.docs.length - 1],
+    hasMore: snapshot.docs.length === pageSize,
+  };
 }
 
 export function subscribeToStudentAppointmentRequests(

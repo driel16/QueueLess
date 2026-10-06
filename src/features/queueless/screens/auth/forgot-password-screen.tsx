@@ -6,8 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorBanner, Field } from '../../components';
 import { getPasswordResetErrorMessage, requestPasswordReset } from '../../auth';
-import { palette } from '../../palette';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 
 const signInRoutes = {
   student: '/login',
@@ -16,6 +16,9 @@ const signInRoutes = {
 } as const;
 
 export default function ForgotPasswordScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const params = useLocalSearchParams<{ email?: string | string[]; role?: string | string[] }>();
   const role = params.role === 'staff' || params.role === 'admin' ? params.role : 'student';
   const [email, setEmail] = useState(() => (typeof params.email === 'string' ? params.email : ''));
@@ -66,9 +69,9 @@ export default function ForgotPasswordScreen() {
         <View style={styles.loginHero}>
           <View style={styles.resetIcon}>
             {requestSent ? (
-              <MailCheck size={32} color="#FFFFFF" />
+              <MailCheck size={32} color={palette.white} />
             ) : (
-              <Send size={29} color="#FFFFFF" />
+              <Send size={29} color={palette.white} />
             )}
           </View>
           <Text style={styles.schoolName}>{requestSent ? 'Check your email' : 'Forgot password?'}</Text>
@@ -108,7 +111,7 @@ export default function ForgotPasswordScreen() {
                 disabled={isLoading}
                 accessibilityRole="button">
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color={palette.white} />
                 ) : (
                   <Text style={styles.primaryButtonText}>Send reset link</Text>
                 )}

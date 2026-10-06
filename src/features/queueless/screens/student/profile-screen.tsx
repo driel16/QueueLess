@@ -12,9 +12,13 @@ import {
   signOutCurrentUser,
 } from '../../auth';
 import type { StudentProfile } from '../../auth';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 
 export default function ProfileScreen() {
+  const palette = useQueuelessPalette();
+  const styles = useQueuelessStyles();
+
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -72,9 +76,9 @@ export default function ProfileScreen() {
                 !profile.emailVerified && styles.profileVerificationBadgePending,
               ]}>
               {profile.emailVerified ? (
-                <BadgeCheck size={16} color="#0F8F8B" strokeWidth={2.5} />
+                <BadgeCheck size={16} color={palette.greenDark} strokeWidth={2.5} />
               ) : (
-                <CircleAlert size={16} color="#B77800" strokeWidth={2.5} />
+                <CircleAlert size={16} color={palette.amber} strokeWidth={2.5} />
               )}
               <Text
                 style={[
@@ -89,7 +93,7 @@ export default function ProfileScreen() {
         {profileError ? <ErrorBanner message={profileError} /> : null}
         {isLoading ? (
           <View style={styles.profileLoading}>
-            <ActivityIndicator color="#0F8F8B" />
+            <ActivityIndicator color={palette.greenDark} />
             <Text style={styles.cardSubtle}>Loading your profile...</Text>
           </View>
         ) : profile ? (
@@ -169,10 +173,10 @@ export default function ProfileScreen() {
                 }
               }}>
               {isDeleting ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={palette.white} />
               ) : (
                 <>
-                  <Trash2 size={17} color="#FFFFFF" />
+                  <Trash2 size={17} color={palette.white} />
                   <Text style={styles.deleteAccountButtonText}>Permanently delete account</Text>
                 </>
               )}
@@ -197,7 +201,7 @@ export default function ProfileScreen() {
               setDeleteError(undefined);
               setIsDeleteFormOpen(true);
             }}>
-            <Trash2 size={16} color="#D74C5C" />
+            <Trash2 size={16} color={palette.danger} />
             <Text style={styles.deleteAccountLinkText}>Delete account</Text>
           </Pressable>
         )}
@@ -220,10 +224,10 @@ export default function ProfileScreen() {
             }
           }}>
           {isSigningOut ? (
-            <ActivityIndicator color="#D74C5C" />
+            <ActivityIndicator color={palette.danger} />
           ) : (
             <>
-              <LogOut size={18} color="#D74C5C" />
+              <LogOut size={18} color={palette.danger} />
               <Text style={styles.signOutButtonText}>Log Out</Text>
             </>
           )}

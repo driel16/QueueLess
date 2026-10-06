@@ -13,12 +13,15 @@ import {
   isOperatingDateAvailable,
   type OperatingHours,
 } from '../../settings';
-import { palette } from '../../palette';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 
 const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function ScheduleScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { originalDate, requestId, serviceTitle } = useLocalSearchParams<{
     originalDate?: string;
     requestId?: string;
@@ -100,6 +103,7 @@ export default function ScheduleScreen() {
             <View style={styles.calendarCard}>
               <View style={styles.bookingMonthControls}>
                 <Pressable
+                  style={styles.bookingMonthButton}
                   accessibilityRole="button"
                   accessibilityLabel="Previous month"
                   onPress={() => {
@@ -112,6 +116,7 @@ export default function ScheduleScreen() {
                   {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                 </Text>
                 <Pressable
+                  style={styles.bookingMonthButton}
                   accessibilityRole="button"
                   accessibilityLabel="Next month"
                   onPress={() => {

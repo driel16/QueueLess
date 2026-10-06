@@ -4,10 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { palette } from '../../palette';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 
 export default function ChooseRoleScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   return (
     <SafeAreaView style={styles.splash}>
       <StatusBar style="light" />
@@ -20,7 +23,7 @@ export default function ChooseRoleScreen() {
           onPress={() => router.replace('/')}
           accessibilityRole="button"
           accessibilityLabel="Back to welcome screen">
-          <ArrowLeft size={19} color="#FFFFFF" />
+          <ArrowLeft size={19} color={palette.white} />
           <Text style={styles.chooseRoleBackText}>Back</Text>
         </Pressable>
         <View style={styles.chooseRoleContent}>
@@ -53,7 +56,7 @@ export default function ChooseRoleScreen() {
             accessibilityRole="button"
             accessibilityLabel="Continue as staff">
             <View style={[styles.roleIcon, styles.roleIconStaffOnSplash]}>
-              <BriefcaseBusiness size={24} color="#FFFFFF" />
+              <BriefcaseBusiness size={24} color={palette.white} />
             </View>
             <View style={styles.roleCardCopy}>
               <Text style={[styles.roleCardTitle, styles.roleCardTitleStaff]}>I’m staff</Text>
@@ -61,7 +64,7 @@ export default function ChooseRoleScreen() {
                 Manage requests and the live queue
               </Text>
             </View>
-            <ArrowRight size={22} color="#FFFFFF" />
+            <ArrowRight size={22} color={palette.white} />
           </Pressable>
           <View style={styles.splashTrustRow}>
             <View style={styles.splashTrustDot} />

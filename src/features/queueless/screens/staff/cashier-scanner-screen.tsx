@@ -5,10 +5,13 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 
 import { ErrorBanner, StaffHeader, StaffScreen } from '../../components';
 import { parseAppointmentQrPayload } from '../../appointment-qr';
-import { styles } from '../../styles';
-import { palette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
 
 export default function CashierScannerScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const [permission, requestPermission] = useCameraPermissions();
   const [scanError, setScanError] = useState<string>();
   const [hasScanned, setHasScanned] = useState(false);

@@ -49,9 +49,26 @@ Typical status transitions:
 ```text
 pending ── staff approves ──> approved ── staff calls ──> serving ── both confirm ──> completed
    └──── staff rejects ─────> rejected                   └── staff skips ──> skipped ──> approved
+pending/approved ── appointment date passes without check-in ──> no-show
 ```
 
 Queue number and estimated wait values are assigned/updated by the app's staff operations. Queue ordering is based on the assigned queue number, then creation time and document ID as tie-breakers.
+
+`functions/src/index.ts` schedules `expireMissedAppointments` for 12:05 AM in `Asia/Manila` each day. It marks prior-day pending or approved appointments without `arrivedAt` as `no-show`, records `noShowAt`, and releases only the matching active-appointment lock. It does not change the capacity count for a past date. The transaction checks the appointment again before writing, so retries and concurrent check-ins do not double-process it. Students can review no-shows in Queue History and Notifications.
+
+To enable the scheduled job in Firebase:
+
+1. Deploy the Firestore index and Cloud Function to the configured project:
+
+   ```bash
+   npm install --prefix functions
+   npx firebase-tools deploy --only firestore:indexes,functions --project queueless-3e183
+   ```
+   The Firebase deploy hook builds the TypeScript function before upload.
+2. Scheduled Functions require the Blaze (pay-as-you-go) plan and the Cloud Scheduler API. Confirm billing and API enablement in Google Cloud before deployment.
+3. Verify `expireMissedAppointments` and its scheduler job in the Firebase/Google Cloud console.
+
+The scheduled cleanup runs only after deployment; the client app does not have permission to mark appointments as no-show.
 
 ## QR ticket flow
 

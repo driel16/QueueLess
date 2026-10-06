@@ -65,7 +65,7 @@ describe('isActiveAppointmentStatus', () => {
     },
   );
 
-  it.each(['completed', 'cancelled', 'rejected'] as const)(
+  it.each(['completed', 'cancelled', 'no-show', 'rejected'] as const)(
     'treats %s appointments as inactive',
     (status) => {
       expect(isActiveAppointmentStatus(status)).toBe(false);

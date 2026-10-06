@@ -5,11 +5,14 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { AppScreen, EmptyState, ErrorBanner, Header } from '../../components';
 import { services } from '../../data';
 import { getServiceAvailability } from '../../settings';
-import { styles } from '../../styles';
-import { palette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
 import { useStudentAppointments } from '../../use-student-appointments';
 
 export default function ServicesScreen() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
   const { requests, isLoading: appointmentsLoading } = useStudentAppointments();
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);

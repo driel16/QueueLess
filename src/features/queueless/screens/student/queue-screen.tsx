@@ -10,10 +10,14 @@ import {
   Header,
   QueueProgress,
 } from '../../components';
-import { styles } from '../../styles';
+import { useQueuelessPalette } from '../../palette';
+import { useQueuelessStyles } from '../../styles';
 import { useStudentAppointments } from '../../use-student-appointments';
 
 export default function QueueScreen() {
+  const palette = useQueuelessPalette();
+  const styles = useQueuelessStyles();
+
   const { requests, isLoading, error } = useStudentAppointments();
   const approvedRequests = requests
     .filter((request) => request.status === 'approved' || request.status === 'serving')
@@ -33,7 +37,7 @@ export default function QueueScreen() {
           backTo="/home"
         />
         {error ? <ErrorBanner message={error} /> : null}
-        {isLoading ? <ActivityIndicator color="#0F8F8B" /> : null}
+        {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {approvedRequests.length ? (
           approvedRequests.map((request) => (
             <View key={request.id} style={styles.appointmentStatusCard}>
