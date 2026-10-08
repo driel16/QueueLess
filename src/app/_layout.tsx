@@ -1,16 +1,15 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, useColorScheme } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 
-import { darkPalette, lightPalette } from '@/features/queueless/palette';
+import { lightPalette } from '@/features/queueless/palette';
 import { StudentQueueAlertModal } from '@/features/queueless/queue/student-queue-alert-modal';
 import { useStudentQueueAlerts } from '@/features/queueless/queue/use-student-queue-alerts';
 
 export default function RootLayout() {
   const { notifications, dismissNotification } = useStudentQueueAlerts();
-  const colorScheme = useColorScheme();
-  const screenBackground = colorScheme === 'dark' ? darkPalette.bg : lightPalette.bg;
+  const screenBackground = lightPalette.bg;
   const [reduceMotion, setReduceMotion] = useState(true);
 
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
           headerShown: false,

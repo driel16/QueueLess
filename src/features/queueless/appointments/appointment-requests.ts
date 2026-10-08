@@ -220,11 +220,11 @@ function assertAppointmentCanChange(
     data.studentId !== currentUserId ||
     (data.status !== 'pending' && data.status !== 'approved') ||
     typeof data.date !== 'string' ||
-    data.date <= formatLocalDate(new Date()) ||
+    data.date < formatLocalDate(new Date()) ||
     data.arrivedAt
   ) {
     throw new Error(
-      `Appointment ${requestId} can only be changed before its scheduled date and before check-in.`,
+      `Appointment ${requestId} can only be changed on or before its scheduled date and before check-in.`,
     );
   }
 }

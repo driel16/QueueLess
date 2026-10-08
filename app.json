@@ -6,7 +6,7 @@
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "queueless",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.driel16.queueless",
       "icon": "./assets/images/icon.png",
@@ -40,7 +40,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#112653",
+          "backgroundColor": "#F4FAFF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }

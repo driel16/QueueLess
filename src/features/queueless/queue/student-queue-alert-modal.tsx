@@ -48,7 +48,7 @@ export function StudentQueueAlertModal({
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 14,
-              backgroundColor: palette.blueAction,
+              backgroundColor: palette.greenDark,
             }}
             onPress={onDismiss}>
             <Text style={{ color: palette.white, fontSize: 15, fontWeight: '900' }}>

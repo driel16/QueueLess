@@ -1,7 +1,6 @@
-import { useMemo } from 'react';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { StyleSheet } from 'react-native';
 
-import { darkPalette, lightPalette, type Palette } from './palette';
+import { lightPalette, type Palette } from './palette';
 
 function createStyles(palette: Palette) {
   return StyleSheet.create({
@@ -10,6 +9,162 @@ function createStyles(palette: Palette) {
   splash: {
     flex: 1,
     backgroundColor: palette.splashNavy,
+  },
+  roleSelectionScreen: {
+    flex: 1,
+    backgroundColor: palette.roleSelectionBlue,
+  },
+  roleSelectionScrollContent: {
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: 620,
+    alignSelf: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 28,
+    paddingTop: 8,
+    paddingBottom: 68,
+  },
+  roleSelectionBackButton: {
+    position: 'absolute',
+    top: 8,
+    left: 28,
+    zIndex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+  },
+  roleSelectionBackText: { color: palette.roleSelectionText, fontSize: 14, fontWeight: '800' },
+  roleSelectionBody: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 80,
+    paddingBottom: 34,
+  },
+  roleSelectionBrand: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  roleSelectionLogo: {
+    width: 128,
+    height: 128,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.roleSelectionTeal,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    boxShadow: '0px 14px 28px rgba(12,34,91,0.22)',
+    elevation: 7,
+  },
+  roleSelectionBrandTitle: {
+    marginTop: 38,
+    color: palette.roleSelectionText,
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: -0.8,
+    textAlign: 'center',
+  },
+  roleSelectionTagline: {
+    marginTop: 12,
+    color: palette.roleSelectionMuted,
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  roleSelectionPrompt: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 14,
+    gap: 8,
+  },
+  roleSelectionTitle: {
+    color: palette.roleSelectionText,
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  roleSelectionSubtitle: {
+    color: palette.roleSelectionMuted,
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  roleSelectionCards: {
+    width: '100%',
+    gap: 16,
+  },
+  roleSelectionCard: {
+    width: '100%',
+    minHeight: 74,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  roleSelectionStudentCard: {
+    backgroundColor: palette.white,
+    borderColor: 'rgba(255,255,255,0.92)',
+  },
+  roleSelectionStaffCard: {
+    backgroundColor: palette.roleSelectionStaffSurface,
+    borderColor: palette.roleSelectionStaffBorder,
+  },
+  roleSelectionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleSelectionStudentIcon: {
+    backgroundColor: palette.mint,
+  },
+  roleSelectionStaffIcon: {
+    backgroundColor: palette.roleSelectionStaffIcon,
+  },
+  roleSelectionCardCopy: {
+    flex: 1,
+    gap: 5,
+    minWidth: 0,
+  },
+  roleSelectionStudentTitle: {
+    color: palette.ink,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  roleSelectionStudentSubtitle: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  roleSelectionStaffTitle: {
+    color: palette.roleSelectionText,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  roleSelectionStaffSubtitle: {
+    color: palette.roleSelectionMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  roleSelectionFooter: {
+    alignItems: 'center',
+    paddingTop: 20,
+  },
+  roleSelectionFooterText: {
+    color: palette.roleSelectionMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   splashLanding: {
     backgroundColor: palette.splashNavy,
@@ -169,7 +324,12 @@ function createStyles(palette: Palette) {
     fontWeight: '800',
     letterSpacing: 1.2,
   },
-  splashStartButtonTitle: { color: palette.white, fontSize: 20, fontWeight: '800', letterSpacing: -0.2 },
+  splashStartButtonTitle: {
+    color: palette.splashTextButton,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
   splashStartButtonSubtitle: { color: palette.splashTextButton, fontSize: 12.5, fontWeight: '500', lineHeight: 17 },
   splashStartButtonArrow: {
     width: 46,
@@ -284,10 +444,10 @@ function createStyles(palette: Palette) {
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.blueAction,
+    backgroundColor: palette.greenDark,
     paddingVertical: 12,
     paddingHorizontal: 18,
-    shadowColor: palette.blueShadow,
+    shadowColor: palette.greenDark,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
@@ -315,7 +475,7 @@ function createStyles(palette: Palette) {
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.blueAction,
+    backgroundColor: palette.blue,
     shadowColor: palette.blueShadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
@@ -809,7 +969,7 @@ function createStyles(palette: Palette) {
     flex: 1,
     minHeight: 44,
     borderRadius: 13,
-    backgroundColor: palette.blueAction,
+    backgroundColor: palette.greenDark,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1134,7 +1294,7 @@ function createStyles(palette: Palette) {
   dayCell: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dayCellDisabled: { opacity: 0.35 },
   dayCellEmpty: { width: 36, height: 36 },
-  dayCellSelected: { backgroundColor: palette.blueAction },
+  dayCellSelected: { backgroundColor: palette.green },
   dayText: { color: palette.ink, fontSize: 14, fontWeight: '800' },
   dayTextSelected: { color: palette.white },
   timeSlot: {
@@ -1148,7 +1308,7 @@ function createStyles(palette: Palette) {
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  timeSlotSelected: { backgroundColor: palette.blueAction, borderColor: palette.blueAction },
+  timeSlotSelected: { backgroundColor: palette.green, borderColor: palette.green },
   timeText: { color: palette.ink, fontSize: 15, fontWeight: '900' },
   timeTextSelected: { color: palette.white },
   settingsCard: {
@@ -1169,7 +1329,7 @@ function createStyles(palette: Palette) {
     justifyContent: 'center',
     backgroundColor: palette.bg,
   },
-  settingsDaySelected: { backgroundColor: palette.blueAction },
+  settingsDaySelected: { backgroundColor: palette.greenDark },
   settingsDayText: { color: palette.ink, fontSize: 13, fontWeight: '800' },
   settingsDayTextSelected: { color: palette.white },
   settingsChip: {
@@ -1198,7 +1358,7 @@ function createStyles(palette: Palette) {
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
-  settingsPeriodButtonSelected: { backgroundColor: palette.blueAction },
+  settingsPeriodButtonSelected: { backgroundColor: palette.green },
   settingsPeriodText: {
     color: palette.muted,
     fontSize: 13,
@@ -1230,7 +1390,7 @@ function createStyles(palette: Palette) {
   bookingCalendarGrid: { marginHorizontal: -8, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   bookingWeekday: { width: '14%', paddingVertical: 8, color: palette.muted, fontSize: 11, fontWeight: '900', textAlign: 'center' },
   bookingDate: { width: '14.2857%', minHeight: 48, marginVertical: 2, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  bookingDateSelected: { backgroundColor: palette.blueAction },
+  bookingDateSelected: { backgroundColor: palette.greenDark },
   bookingDateText: { color: palette.ink, fontSize: 13, fontWeight: '800' },
   bookingDateTextSelected: { color: palette.white },
   bookingTimeSelectors: { flexDirection: 'row', gap: 12 },
@@ -1249,7 +1409,7 @@ function createStyles(palette: Palette) {
     alignItems: 'center',
     paddingVertical: 28,
     borderRadius: 22,
-    backgroundColor: palette.blueAction,
+    backgroundColor: palette.green,
     gap: 4,
   },
   queueLabel: { color: palette.white, fontSize: 13, fontWeight: '900' },
@@ -1345,7 +1505,7 @@ function createStyles(palette: Palette) {
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.blueAction,
+    backgroundColor: palette.green,
   },
   pillButtonText: { color: palette.white, fontSize: 12, fontWeight: '900' },
   outlinePillButton: {
@@ -1359,17 +1519,12 @@ function createStyles(palette: Palette) {
     backgroundColor: palette.card,
   },
   outlinePillButtonText: { color: palette.ink, fontSize: 12, fontWeight: '900' },
-  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.greenDark },
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.green },
   });
 }
 
 const lightStyles = createStyles(lightPalette);
-const darkStyles = createStyles(darkPalette);
 
 export function useQueuelessStyles() {
-  const colorScheme = useColorScheme();
-  return useMemo(
-    () => (colorScheme === 'dark' ? darkStyles : lightStyles),
-    [colorScheme],
-  );
+  return lightStyles;
 }

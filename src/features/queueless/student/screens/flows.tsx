@@ -169,8 +169,8 @@ export function RegisterScreen() {
                   height: 24,
                   borderRadius: 6,
                   borderWidth: 2,
-                  borderColor: acceptedTerms ? palette.blueAction : palette.neutralBorder,
-                  backgroundColor: acceptedTerms ? palette.blueAction : palette.card,
+                  borderColor: acceptedTerms ? palette.greenDark : palette.neutralBorder,
+                  backgroundColor: acceptedTerms ? palette.greenDark : palette.card,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
@@ -517,7 +517,7 @@ export function MyAppointmentsScreen() {
               </>
             ) : null}
             {['pending', 'approved'].includes(request.status) &&
-            request.date > today &&
+            request.date >= today &&
             !request.arrivedAt ? (
               <View style={styles.actionRow}>
                 <Pressable
@@ -542,7 +542,7 @@ export function MyAppointmentsScreen() {
                     setActionError(undefined);
                     setCancelConfirmationId(request.id);
                   }}>
-                  <Text style={styles.secondaryButtonText}>Cancel</Text>
+                  <Text style={styles.secondaryButtonText}>Cancel appointment</Text>
                 </Pressable>
               </View>
             ) : null}

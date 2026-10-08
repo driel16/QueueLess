@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,7 +18,6 @@ import { getFirebaseAuth, getFirebaseFirestore } from '@/lib/firebase';
 export default function SplashScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
-  const colorScheme = useColorScheme();
 
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [sessionError, setSessionError] = useState<string>();
@@ -81,7 +80,7 @@ export default function SplashScreen() {
   if (isRestoringSession) {
     return (
       <SafeAreaView style={[styles.splash, styles.splashLanding]}>
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style="dark" />
         <View style={styles.splashRestore}>
           <View style={styles.splashLogo}>
             <BrandMark />
@@ -95,7 +94,7 @@ export default function SplashScreen() {
 
   return (
     <SafeAreaView style={[styles.splash, styles.splashLanding]}>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style="dark" />
       <ScrollView
         style={styles.splashScroll}
         contentContainerStyle={styles.splashLandingScrollContent}

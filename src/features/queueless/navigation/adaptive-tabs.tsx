@@ -24,7 +24,7 @@ function useAdaptiveTabOptions() {
     tabBarPosition: expanded ? ('left' as const) : ('bottom' as const),
     tabBarVariant: expanded ? ('material' as const) : ('uikit' as const),
     tabBarLabelPosition: expanded ? ('beside-icon' as const) : ('below-icon' as const),
-    tabBarActiveTintColor: palette.blueAction,
+    tabBarActiveTintColor: palette.green,
     tabBarInactiveTintColor: palette.muted,
     tabBarHideOnKeyboard: true,
     tabBarItemStyle: expanded
