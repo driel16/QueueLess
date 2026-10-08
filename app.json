@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Queueless",
+    "name": "QueueLess",
     "slug": "Queueless",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "queueless",
     "userInterfaceStyle": "automatic",

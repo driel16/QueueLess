@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { AlertCircle, ArrowLeft, AtSign, Eye, EyeOff, Inbox, LockKeyhole } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -6,41 +6,42 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { staffTabs, tabs } from './data';
-import { createAppointmentQrPayload } from './appointment-qr';
-import { confirmStudentTransactionFinished } from './appointment-requests';
-import type { AppointmentRequest } from './appointment-requests';
+import { createAppointmentQrPayload } from './appointments/appointment-qr';
+import { confirmStudentTransactionFinished } from './appointments/appointment-requests';
+import type { AppointmentRequest } from './appointments/appointment-requests';
 import { palette as fixedPalette, qrCodePalette, useQueuelessPalette } from './palette';
-import { formatLocalDate } from './schedule-utils';
+import { formatLocalDate } from './schedule/schedule-utils';
 import { useQueuelessStyles } from './styles';
-import type { AppRoute, StaffRoute } from './types';
 
-export function AppScreen({ children, current }: { children: React.ReactNode; current: AppRoute }) {
+const studentTabRoutes = new Set(['/home', '/services', '/queue', '/profile']);
+const staffTabRoutes = new Set([
+  '/cashier-dashboard',
+  '/appointment-requests',
+  '/active-queue',
+  '/service-management',
+  '/staff-settings',
+]);
+
+export function AppScreen({ children }: { children: React.ReactNode }) {
   const styles = useQueuelessStyles();
+  const pathname = usePathname();
+  const edges = studentTabRoutes.has(pathname) ? ['top'] as const : ['top', 'bottom'] as const;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.screen}>
-        <View style={{ flex: 1 }}>{children}</View>
-        <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
-          <BottomNav current={current} />
-        </SafeAreaView>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={edges}>
+      <View style={styles.screen}>{children}</View>
     </SafeAreaView>
   );
 }
 
-export function StaffScreen({ children, current }: { children: React.ReactNode; current: StaffRoute }) {
+export function StaffScreen({ children }: { children: React.ReactNode }) {
   const styles = useQueuelessStyles();
+  const pathname = usePathname();
+  const edges = staffTabRoutes.has(pathname) ? ['top'] as const : ['top', 'bottom'] as const;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.screen}>
-        <View style={{ flex: 1 }}>{children}</View>
-        <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
-          <StaffBottomNav current={current} />
-        </SafeAreaView>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={edges}>
+      <View style={styles.screen}>{children}</View>
     </SafeAreaView>
   );
 }
@@ -398,57 +399,6 @@ export function AppointmentQrTicket({ request }: { request: AppointmentRequest }
         ecl="M"
       />
       <Text style={styles.itemSubtle}>Appointment ID: {request.id}</Text>
-    </View>
-  );
-}
-
-function BottomNav({ current }: { current: AppRoute }) {
-  const styles = useQueuelessStyles();
-  const palette = useQueuelessPalette();
-
-  return (
-    <View style={styles.bottomBar} accessibilityRole="tablist" accessibilityLabel="Student navigation">
-      {tabs.map((tab) => {
-        const active = current === tab.key || (current === 'schedule' && tab.key === 'services');
-        const Icon = tab.icon;
-        return (
-          <Pressable
-            key={tab.key}
-            style={styles.tabItem}
-            onPress={() => router.replace(tab.href)}
-            accessibilityRole="tab"
-            accessibilityLabel={tab.label}
-            accessibilityState={{ selected: active }}>
-            <Icon size={20} color={active ? palette.blue : palette.muted} strokeWidth={2.2} />
-            <Text style={[styles.tabLabel, active && styles.tabActive]}>{tab.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function StaffBottomNav({ current }: { current: StaffRoute }) {
-  const styles = useQueuelessStyles();
-  const palette = useQueuelessPalette();
-
-  return (
-    <View style={styles.bottomBar} accessibilityRole="tablist" accessibilityLabel="Staff navigation">
-      {staffTabs.map((tab) => {
-        const Icon = tab.icon;
-        return (
-          <Pressable
-            key={tab.key}
-            style={styles.tabItem}
-            onPress={() => router.replace(tab.href)}
-            accessibilityRole="tab"
-            accessibilityLabel={tab.label}
-            accessibilityState={{ selected: current === tab.key }}>
-            <Icon size={20} color={current === tab.key ? palette.blue : palette.muted} strokeWidth={2.2} />
-            <Text style={[styles.tabLabel, current === tab.key && styles.tabActive]}>{tab.label}</Text>
-          </Pressable>
-        );
-      })}
     </View>
   );
 }

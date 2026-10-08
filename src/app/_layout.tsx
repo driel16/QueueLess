@@ -3,12 +3,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, useColorScheme } from 'react-native';
 
-import { StudentQueueAlertModal } from '@/features/queueless/student-queue-alert-modal';
-import { useStudentQueueAlerts } from '@/features/queueless/use-student-queue-alerts';
+import { darkPalette, lightPalette } from '@/features/queueless/palette';
+import { StudentQueueAlertModal } from '@/features/queueless/queue/student-queue-alert-modal';
+import { useStudentQueueAlerts } from '@/features/queueless/queue/use-student-queue-alerts';
 
 export default function RootLayout() {
   const { notifications, dismissNotification } = useStudentQueueAlerts();
   const colorScheme = useColorScheme();
+  const screenBackground = colorScheme === 'dark' ? darkPalette.bg : lightPalette.bg;
   const [reduceMotion, setReduceMotion] = useState(true);
 
   useEffect(() => {
@@ -40,6 +42,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
+          contentStyle: { backgroundColor: screenBackground },
           animation: reduceMotion ? 'none' : 'fade',
           animationDuration: 250,
         }}

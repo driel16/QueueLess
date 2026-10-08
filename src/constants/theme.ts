@@ -7,20 +7,24 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+import { darkPalette, lightPalette } from '@/features/queueless/palette';
+
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: lightPalette.ink,
+    background: lightPalette.bg,
+    backgroundElement: lightPalette.card,
+    backgroundSelected: lightPalette.blueSoft,
+    textSecondary: lightPalette.muted,
+    linkPrimary: lightPalette.blue,
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: darkPalette.ink,
+    background: darkPalette.bg,
+    backgroundElement: darkPalette.card,
+    backgroundSelected: darkPalette.blueSoft,
+    textSecondary: darkPalette.muted,
+    linkPrimary: darkPalette.blue,
   },
 } as const;
 
