@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandMark } from '../../brand-mark';
 import { useQueuelessPalette } from '../../palette';
 import { useQueuelessStyles } from '../../styles';
 
@@ -19,17 +20,17 @@ export default function ChooseRoleScreen() {
         contentContainerStyle={styles.roleSelectionScrollContent}
         showsVerticalScrollIndicator={false}>
         <Pressable
-          style={styles.roleSelectionBackButton}
+          style={[styles.backButton, styles.roleSelectionBackButton]}
           onPress={() => router.replace('/')}
           accessibilityRole="button"
-          accessibilityLabel="Back to welcome screen">
-          <ArrowLeft size={19} color={palette.roleSelectionText} />
-          <Text style={styles.roleSelectionBackText}>Back</Text>
+          accessibilityLabel="Back to welcome screen"
+          accessibilityHint="Returns to the QueueLess welcome screen">
+          <ArrowLeft size={18} color={palette.roleSelectionText} strokeWidth={2.5} />
         </Pressable>
         <View style={styles.roleSelectionBody}>
           <View style={styles.roleSelectionBrand}>
             <View style={styles.roleSelectionLogo}>
-              <BriefcaseBusiness size={58} color={palette.white} strokeWidth={1.8} />
+              <BrandMark size={84} />
             </View>
             <Text style={styles.roleSelectionBrandTitle}>QueueLess</Text>
             <Text style={styles.roleSelectionTagline}>Skip the line. Book your spot.</Text>

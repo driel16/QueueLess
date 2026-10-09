@@ -36,8 +36,11 @@ import {
   saveQueueCapacity,
   skipServingAppointment,
   subscribeToAppointmentRequests,
+  subscribeToActiveStudentBookingRestrictions,
+  overrideStudentBookingHold,
   subscribeToStaffMembers,
   type AppointmentRequest,
+  type StudentBookingRestriction,
   type StaffMember,
 } from '../../appointments/appointment-requests';
 import { services } from '../../data';
@@ -567,6 +570,10 @@ export function AppointmentRequestsScreen() {
   const [actionError, setActionError] = useState<string>();
   const [searchText, setSearchText] = useState('');
   const [selectedService, setSelectedService] = useState('All services');
+  const [bookingRestrictions, setBookingRestrictions] = useState<StudentBookingRestriction[]>([]);
+  const [bookingRestrictionError, setBookingRestrictionError] = useState<string>();
+  const [processingHoldId, setProcessingHoldId] = useState<string>();
+  const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
     const unsubscribe = subscribeToAppointmentRequests(
@@ -582,6 +589,24 @@ export function AppointmentRequestsScreen() {
       { status: 'pending' },
     );
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToActiveStudentBookingRestrictions(
+      (restrictions) => {
+        setBookingRestrictions(restrictions);
+        setBookingRestrictionError(undefined);
+      },
+      (error) => setBookingRestrictionError(error.message),
+    );
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const refreshTime = () => setCurrentTime(Date.now());
+    refreshTime();
+    const interval = setInterval(refreshTime, 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   const pendingRequests = requests.filter((request) => request.status === 'pending');
@@ -618,6 +643,26 @@ export function AppointmentRequestsScreen() {
     }
   };
 
+  const handleBookingHoldOverride = async (studentId: string) => {
+    setActionError(undefined);
+    setProcessingHoldId(studentId);
+    try {
+      await overrideStudentBookingHold(studentId);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Could not override this booking hold.',
+      );
+    } finally {
+      setProcessingHoldId(undefined);
+    }
+  };
+
+  const activeBookingHolds = bookingRestrictions.filter(
+    (restriction) =>
+      restriction.blockedUntil.getTime() > currentTime &&
+      restriction.overrideForIncidentAt?.getTime() !== restriction.latestIncidentAt.getTime(),
+  );
+
   return (
     <StaffScreen>
       <FlatList
@@ -633,7 +678,49 @@ export function AppointmentRequestsScreen() {
             <StaffHeader title="Appointment Requests" subtitle="Review pending student submissions" />
             {loadError ? <ErrorBanner message={loadError} /> : null}
             {actionError ? <ErrorBanner message={actionError} /> : null}
+            {bookingRestrictionError ? <ErrorBanner message={bookingRestrictionError} /> : null}
             {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
+            {activeBookingHolds.length ? (
+              <View style={styles.compactCard}>
+                <Text style={styles.itemTitle}>Temporary booking holds</Text>
+                <Text style={styles.itemSubtle}>
+                  These students had 3 late cancellations or missed appointments in 30 days.
+                </Text>
+                {activeBookingHolds.map((restriction) => (
+                  <View
+                    key={restriction.studentId}
+                    style={{
+                      gap: 10,
+                      paddingTop: 14,
+                      borderTopWidth: 1,
+                      borderTopColor: palette.faint,
+                    }}>
+                    <Text style={styles.itemTitle}>{restriction.studentName}</Text>
+                    <Text style={styles.itemSubtle}>
+                      {restriction.incidentCount} recent incidents · hold through{' '}
+                      {restriction.blockedUntil.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                    <Pressable
+                      style={styles.primaryButton}
+                      disabled={processingHoldId === restriction.studentId}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Override booking hold for ${restriction.studentName}`}
+                      onPress={() => void handleBookingHoldOverride(restriction.studentId)}>
+                      {processingHoldId === restriction.studentId ? (
+                        <ActivityIndicator color={palette.white} />
+                      ) : (
+                        <Text style={styles.primaryButtonText}>Allow booking now</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View style={[styles.inputShell, { gap: 10 }]}>
               <Search size={18} color={palette.muted} />
               <TextInput

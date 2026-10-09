@@ -1,7 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { AtSign, Check, Hash, MailCheck } from 'lucide-react-native';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
+import { AtSign, BellRing, Check, Hash, MailCheck } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -29,6 +38,12 @@ import { services } from '../../data';
 import { useQueuelessStyles } from '../../styles';
 import { useQueuelessPalette } from '../../palette';
 import { useStudentAppointments } from '../../appointments/hooks/use-student-appointments';
+import { getFirebaseAuth } from '@/lib/firebase';
+import {
+  getStudentPushPermission,
+  requestStudentQueuePushNotifications,
+  type StudentPushPermission,
+} from '../../queue/push-notifications';
 
 export function RegisterScreen() {
   const styles = useQueuelessStyles();
@@ -516,33 +531,39 @@ export function MyAppointmentsScreen() {
                 <AppointmentQrTicket request={request} />
               </>
             ) : null}
-            {['pending', 'approved'].includes(request.status) &&
-            request.date >= today &&
-            !request.arrivedAt ? (
+            {['pending', 'approved'].includes(request.status) && !request.arrivedAt ? (
               <View style={styles.actionRow}>
+                {request.date > today ? (
+                  <Pressable
+                    style={[styles.secondaryButton, { flex: 1 }]}
+                    accessibilityRole="button"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/schedule',
+                        params: {
+                          serviceTitle: request.service,
+                          requestId: request.id,
+                          originalDate: request.date,
+                        },
+                      })
+                    }>
+                    <Text style={styles.secondaryButtonText}>Reschedule</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
-                  style={[styles.secondaryButton, { flex: 1 }]}
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.push({
-                      pathname: '/schedule',
-                      params: {
-                        serviceTitle: request.service,
-                        requestId: request.id,
-                        originalDate: request.date,
-                      },
-                    })
-                  }>
-                  <Text style={styles.secondaryButtonText}>Reschedule</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.secondaryButton, { flex: 1 }]}
+                  style={[
+                    styles.secondaryButton,
+                    { flex: request.date > today ? 1 : undefined },
+                    { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSoft },
+                  ]}
                   accessibilityRole="button"
                   onPress={() => {
                     setActionError(undefined);
                     setCancelConfirmationId(request.id);
                   }}>
-                  <Text style={styles.secondaryButtonText}>Cancel appointment</Text>
+                  <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
+                    Cancel appointment
+                  </Text>
                 </Pressable>
               </View>
             ) : null}
@@ -655,11 +676,121 @@ export function QueueHistoryScreen() {
   );
 }
 
+function StudentPushNotificationSettings() {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+  const [permission, setPermission] = useState<StudentPushPermission | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isWorking, setIsWorking] = useState(false);
+  const [error, setError] = useState<string>();
+  const userId = getFirebaseAuth().currentUser?.uid;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const refreshPermission = async () => {
+      try {
+        const currentPermission = await getStudentPushPermission();
+        if (isMounted) setPermission(currentPermission);
+      } catch (permissionError) {
+        if (isMounted) {
+          setError(
+            permissionError instanceof Error
+              ? permissionError.message
+              : 'Could not check notification permissions.',
+          );
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    void refreshPermission();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshPermission();
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  const onPress = async () => {
+    if (!userId || isWorking) return;
+
+    setIsWorking(true);
+    setError(undefined);
+    try {
+      if (permission?.canAskAgain !== false) {
+        const updatedPermission = await requestStudentQueuePushNotifications(userId);
+        setPermission(updatedPermission);
+      } else {
+        await Linking.openSettings();
+      }
+    } catch (permissionError) {
+      setError(
+        permissionError instanceof Error
+          ? permissionError.message
+          : 'Could not update notification settings.',
+      );
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  if (Platform.OS === 'web') return null;
+
+  return (
+    <View style={styles.compactCard}>
+      <View style={styles.rowStart}>
+        <BellRing size={20} color={palette.greenDark} strokeWidth={2} />
+        <Text style={styles.itemTitle}>Queue alerts</Text>
+      </View>
+      {isLoading ? (
+        <ActivityIndicator color={palette.greenDark} />
+      ) : permission?.granted ? (
+        <Text style={styles.itemSubtle}>Notifications are enabled on this device.</Text>
+      ) : (
+        <>
+          <Text style={styles.itemSubtle}>
+            Get a device alert when your appointment is approved or the cashier is ready.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isWorking }}
+            disabled={isWorking}
+            style={styles.primaryButton}
+            onPress={onPress}>
+            {isWorking ? (
+              <ActivityIndicator color={palette.white} />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                {permission?.canAskAgain !== false
+                  ? 'Enable notifications'
+                  : 'Open device settings'}
+              </Text>
+            )}
+          </Pressable>
+        </>
+      )}
+      {error ? (
+        <Text accessibilityRole="alert" style={{ color: palette.dangerAction, fontSize: 13 }}>
+          {error}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function NotificationsScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
 
   const { requests, isLoading, error } = useStudentAppointments();
+  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
+  const [processingId, setProcessingId] = useState<string>();
+  const [actionError, setActionError] = useState<string>();
   const notificationRequests = requests.filter((request) => request.status !== 'pending');
   const today = formatLocalDate(new Date());
 
@@ -667,7 +798,9 @@ export function NotificationsScreen() {
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Notifications" subtitle="Queue and appointment alerts" backTo="/home" />
+        <StudentPushNotificationSettings />
         {error ? <ErrorBanner message={error} /> : null}
+        {actionError ? <ErrorBanner message={actionError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {notificationRequests.length ? (
           notificationRequests.map((request) => (
@@ -723,6 +856,74 @@ export function NotificationsScreen() {
                   <Pressable style={styles.primaryButton} onPress={() => router.push('/queue')}>
                     <Text style={styles.primaryButtonText}>View Queue</Text>
                   </Pressable>
+                  {request.status === 'approved' && !request.arrivedAt ? (
+                    cancelConfirmationId === request.id ? (
+                      <View style={styles.queueActionHint}>
+                        <Text style={styles.itemTitle}>Cancel this appointment?</Text>
+                        <Text style={styles.itemSubtle}>
+                          It will be removed from the queue, and its place will be released.
+                        </Text>
+                        <View style={styles.actionRow}>
+                          <Pressable
+                            style={[
+                              styles.primaryButton,
+                              { flex: 1, backgroundColor: palette.dangerAction },
+                            ]}
+                            disabled={processingId === request.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Confirm cancellation for ${request.service}`}
+                            onPress={async () => {
+                              setProcessingId(request.id);
+                              setActionError(undefined);
+                              try {
+                                await cancelAppointmentRequest(request.id);
+                                setCancelConfirmationId(undefined);
+                              } catch (cancelError) {
+                                setActionError(
+                                  cancelError instanceof Error
+                                    ? cancelError.message
+                                    : 'Could not cancel this appointment.',
+                                );
+                              } finally {
+                                setProcessingId(undefined);
+                              }
+                            }}>
+                            {processingId === request.id ? (
+                              <ActivityIndicator color={palette.white} />
+                            ) : (
+                              <Text style={styles.primaryButtonText}>Confirm cancel</Text>
+                            )}
+                          </Pressable>
+                          <Pressable
+                            style={[styles.secondaryButton, { flex: 1 }]}
+                            disabled={processingId === request.id}
+                            accessibilityRole="button"
+                            onPress={() => setCancelConfirmationId(undefined)}>
+                            <Text style={styles.secondaryButtonText}>Keep appointment</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <Pressable
+                        style={[
+                          styles.secondaryButton,
+                          {
+                            borderColor: palette.dangerBorder,
+                            backgroundColor: palette.dangerSoft,
+                          },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Cancel ${request.service} appointment`}
+                        onPress={() => {
+                          setActionError(undefined);
+                          setCancelConfirmationId(request.id);
+                        }}>
+                        <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
+                          Cancel appointment
+                        </Text>
+                      </Pressable>
+                    )
+                  ) : null}
                 </>
               ) : null}
             </View>

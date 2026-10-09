@@ -64,7 +64,7 @@ service cloud.firestore {
         && get(appointmentPath).data.studentId == request.auth.uid
         && get(appointmentPath).data.date == queueDate
         && get(appointmentPath).data.status in ['pending', 'approved']
-        && get(appointmentPath).data.date > currentBusinessDate()
+        && get(appointmentPath).data.date >= currentBusinessDate()
         && !get(appointmentPath).data.keys().hasAny(['arrivedAt'])
         && getAfter(appointmentPath).data.status == 'cancelled';
     }
@@ -146,7 +146,7 @@ service cloud.firestore {
         && exists(previousPath)
         && get(previousPath).data.studentId == studentId
         && get(previousPath).data.status in ['pending', 'approved']
-        && get(previousPath).data.date > currentBusinessDate()
+        && get(previousPath).data.date >= currentBusinessDate()
         && !get(previousPath).data.keys().hasAny(['arrivedAt'])
         && getAfter(previousPath).data.status == 'cancelled'
         && validActiveAppointmentLock(replacementId, studentId);
@@ -324,6 +324,28 @@ service cloud.firestore {
       allow delete: if isVerifiedOwner(userId);
     }
 
+    match /users/{userId}/pushTokens/{tokenId} {
+      allow read: if false;
+      allow create, update: if isVerifiedOwner(userId)
+        && get(/databases/$(database)/documents/users/$(userId)).data.role == 'student'
+        && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 0
+        && request.resource.data.token.size() <= 256
+        && request.resource.data.platform in ['ios', 'android']
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isVerifiedOwner(userId);
+    }
+
+    match /studentBookingRestrictions/{studentId} {
+      allow read: if isStaff();
+      allow write: if false;
+
+      match /incidents/{incidentId} {
+        allow read, write: if false;
+      }
+    }
+
     match /staffApplications/{userId} {
       allow create: if isOwner(userId)
         && request.resource.data.keys().hasOnly([
@@ -376,31 +398,7 @@ service cloud.firestore {
     }
 
     match /appointments/{appointmentId} {
-      allow create: if isStudent()
-        && request.resource.data.keys().hasOnly([
-          'studentId',
-          'studentName',
-          'service',
-          'date',
-          'status',
-          'createdAt'
-        ])
-        && request.resource.data.studentId == request.auth.uid
-        && request.resource.data.studentName
-          == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
-        && request.resource.data['service'] is string
-        && request.resource.data['service'].size() > 0
-        && request.resource.data['date'] is string
-        && request.resource.data['date'].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-        && request.resource.data['status'] == 'pending'
-        && request.resource.data['createdAt'] == request.time
-        && existsAfter(
-          /databases/$(database)/documents/activeAppointmentLocks/$(request.auth.uid)
-        )
-        && getAfter(
-          /databases/$(database)/documents/activeAppointmentLocks/$(request.auth.uid)
-        ).data.appointmentId == appointmentId
-        && validAppointmentCapacityForCreate(appointmentId);
+      allow create: if false;
 
       allow read: if isStaff()
         || (isStudent() && resource.data['studentId'] == request.auth.uid);
@@ -568,14 +566,6 @@ service cloud.firestore {
           )
         )
       )
-      || (
-        isStudent()
-        && resource.data['studentId'] == request.auth.uid
-        && resource.data['status'] in ['pending', 'approved']
-        && resource.data['date'] > currentBusinessDate()
-        && !resource.data.keys().hasAny(['arrivedAt'])
-        && request.resource.data['status'] == 'cancelled'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
       );
 
       allow delete: if false;

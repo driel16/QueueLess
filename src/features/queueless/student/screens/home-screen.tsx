@@ -13,6 +13,7 @@ import {
 } from '../../components';
 import { getCurrentStudentProfile } from '../../auth/auth';
 import type { StudentProfile } from '../../auth/auth';
+import { cancelAppointmentRequest } from '../../appointments/appointment-requests';
 import { useQueuelessPalette } from '../../palette';
 import { useQueuelessStyles } from '../../styles';
 import { useStudentAppointments } from '../../appointments/hooks/use-student-appointments';
@@ -23,6 +24,9 @@ export default function HomeScreen() {
   const styles = useQueuelessStyles();
   const { width } = useWindowDimensions();
   const compactLayout = width < 360;
+  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
+  const [processingId, setProcessingId] = useState<string>();
+  const [actionError, setActionError] = useState<string>();
 
   const {
     requests: appointments,
@@ -63,9 +67,11 @@ export default function HomeScreen() {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join('') || 'Q';
+  const today = formatLocalDate(new Date());
   const upcomingAppointments = appointments
     .filter(
       (appointment) =>
+        appointment.date >= today &&
         appointment.status !== 'rejected' &&
         appointment.status !== 'completed' &&
         appointment.status !== 'cancelled',
@@ -77,13 +83,84 @@ export default function HomeScreen() {
           (second.queueNumber ?? Number.MAX_SAFE_INTEGER),
     )
     .slice(0, 3);
-  const today = formatLocalDate(new Date());
 
   function canReschedule(appointment: (typeof appointments)[number]) {
     return (
       ['pending', 'approved'].includes(appointment.status) &&
       appointment.date > today &&
       !appointment.arrivedAt
+    );
+  }
+
+  function canCancel(appointment: (typeof appointments)[number]) {
+    return (
+      ['pending', 'approved'].includes(appointment.status) &&
+      appointment.date >= today &&
+      !appointment.arrivedAt
+    );
+  }
+
+  async function confirmCancellation(appointmentId: string) {
+    setProcessingId(appointmentId);
+    setActionError(undefined);
+    try {
+      await cancelAppointmentRequest(appointmentId);
+      setCancelConfirmationId(undefined);
+    } catch (cancelError) {
+      setActionError(
+        cancelError instanceof Error ? cancelError.message : 'Could not cancel this appointment.',
+      );
+    } finally {
+      setProcessingId(undefined);
+    }
+  }
+
+  function renderCancellationAction(appointment: (typeof appointments)[number]) {
+    if (!canCancel(appointment)) return null;
+
+    return cancelConfirmationId === appointment.id ? (
+      <View style={styles.queueActionHint}>
+        <Text style={styles.itemTitle}>Cancel this appointment?</Text>
+        <Text style={styles.itemSubtle}>
+          It will be removed from the queue, and its place will be released.
+        </Text>
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.primaryButton, { flex: 1, backgroundColor: palette.dangerAction }]}
+            disabled={processingId === appointment.id}
+            accessibilityRole="button"
+            onPress={() => void confirmCancellation(appointment.id)}>
+            {processingId === appointment.id ? (
+              <ActivityIndicator color={palette.white} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Confirm cancel</Text>
+            )}
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, { flex: 1 }]}
+            disabled={processingId === appointment.id}
+            accessibilityRole="button"
+            onPress={() => setCancelConfirmationId(undefined)}>
+            <Text style={styles.secondaryButtonText}>Keep appointment</Text>
+          </Pressable>
+        </View>
+      </View>
+    ) : (
+      <Pressable
+        style={[
+          styles.secondaryButton,
+          { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSoft },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Cancel ${appointment.service} appointment`}
+        onPress={() => {
+          setActionError(undefined);
+          setCancelConfirmationId(appointment.id);
+        }}>
+        <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
+          Cancel appointment
+        </Text>
+      </Pressable>
     );
   }
 
@@ -126,6 +203,7 @@ export default function HomeScreen() {
         )}
         {profileError ? <ErrorBanner message={profileError} /> : null}
         {appointmentsError ? <ErrorBanner message={appointmentsError} /> : null}
+        {actionError ? <ErrorBanner message={actionError} /> : null}
         <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
         {appointmentsLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {upcomingAppointments.map((appointment) =>
@@ -142,6 +220,7 @@ export default function HomeScreen() {
                   <Text style={styles.secondaryButtonText}>Reschedule appointment</Text>
                 </Pressable>
               ) : null}
+              {renderCancellationAction(appointment)}
             </View>
           ) : (
             <View key={appointment.id} style={styles.appointmentStatusCard}>
@@ -164,6 +243,7 @@ export default function HomeScreen() {
                   <Text style={styles.secondaryButtonText}>Reschedule appointment</Text>
                 </Pressable>
               ) : null}
+              {renderCancellationAction(appointment)}
             </View>
           ),
         )}
