@@ -22,7 +22,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -53,9 +56,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "dc6610cd-dc59-48e6-a780-338a985ef1fc"
+        "projectId": "422a22ca-65f4-4b72-af3c-574549e724a4"
       }
     },
-    "owner": "zedric13"
+    "owner": "z3dric"
   }
 }
