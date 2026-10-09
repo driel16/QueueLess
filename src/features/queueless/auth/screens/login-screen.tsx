@@ -1,10 +1,15 @@
 import { router } from 'expo-router';
 import { AtSign } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ErrorBanner, Field } from '../../components';
+import { ErrorBanner, Field, KeyboardAvoidingScrollView } from '../../components';
 import {
   EmailVerificationRequiredError,
   getAuthErrorMessage,
@@ -79,9 +84,8 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView
+      <KeyboardAvoidingScrollView
         contentContainerStyle={styles.authContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.loginHero}>
           <View style={styles.schoolShield}>
@@ -171,7 +175,7 @@ export default function LoginScreen() {
             <Text style={styles.roleSwitchText}>Choose another account type</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingScrollView>
     </SafeAreaView>
   );
 }

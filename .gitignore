@@ -44,5 +44,5 @@ example
 /android
 
 # Ignore generated docs
-docs/
-
+docs/**
+!docs/KNOWN-ISSUES.md

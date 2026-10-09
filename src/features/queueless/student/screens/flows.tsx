@@ -19,6 +19,8 @@ import {
   ErrorBanner,
   Field,
   Header,
+  KeyboardAvoidingScrollView,
+  formatAppointmentStatusLabel,
 } from '../../components';
 import {
   getAuthErrorMessage,
@@ -26,7 +28,6 @@ import {
   resendVerificationEmail,
 } from '../../auth/auth';
 import {
-  cancelAppointmentRequest,
   rescheduleAppointmentRequest,
   submitAppointmentRequest,
 } from '../../appointments/appointment-requests';
@@ -35,6 +36,36 @@ import { services } from '../../data';
 import { useQueuelessStyles } from '../../styles';
 import { useQueuelessPalette } from '../../palette';
 import { useStudentAppointments } from '../../appointments/hooks/use-student-appointments';
+
+function LoadOlderAppointmentsButton({
+  hasMore,
+  isLoading,
+  onPress,
+}: {
+  hasMore: boolean;
+  isLoading: boolean;
+  onPress: () => void;
+}) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
+  if (!hasMore) return null;
+
+  return (
+    <Pressable
+      style={styles.secondaryButton}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isLoading }}
+      disabled={isLoading}
+      onPress={onPress}>
+      {isLoading ? (
+        <ActivityIndicator color={palette.greenDark} />
+      ) : (
+        <Text style={styles.secondaryButtonText}>Load older appointments</Text>
+      )}
+    </Pressable>
+  );
+}
 
 export function RegisterScreen() {
   const styles = useQueuelessStyles();
@@ -70,7 +101,7 @@ export function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header
           title={verificationSent ? 'Verify your email' : 'Create Account'}
           subtitle={verificationSent ? 'One last step to secure your account' : 'Register your student profile'}
@@ -232,7 +263,7 @@ export function RegisterScreen() {
             </Pressable>
           </>
         )}
-      </ScrollView>
+      </KeyboardAvoidingScrollView>
     </SafeAreaView>
   );
 }
@@ -346,10 +377,21 @@ export function AppointmentRequestScreen() {
 
               router.push({ pathname: '/appointment-confirmation', params: { ticket } });
             } catch (error) {
+              const code =
+                error && typeof error === 'object' && 'code' in error &&
+                typeof error.code === 'string'
+                  ? error.code.replace(/^functions\//, '')
+                  : undefined;
+              const message = error instanceof Error ? error.message.trim() : '';
+              const isGenericFirebaseError =
+                code === 'internal' ||
+                code === 'unknown' ||
+                /^(internal|unknown)(\s*\[\d+\])?$/i.test(message);
+
               setSubmissionError(
-                error instanceof Error
-                  ? error.message
-                  : 'Could not submit your appointment request. Please try again.',
+                isGenericFirebaseError
+                  ? 'The cashier queue could not process your request right now. Please try again. If this continues, contact the cashier.'
+                  : message || 'Could not submit your appointment request. Please try again.',
               );
             } finally {
               setIsSubmitting(false);
@@ -407,7 +449,11 @@ export function AppointmentConfirmationScreen() {
             <View style={styles.confirmationStatusCard}>
               <Text style={styles.itemSubtle}>Status</Text>
               <Text style={styles.confirmationStatusValue}>
-                {isLoading ? 'Checking status…' : request?.status === 'rejected' ? 'Request declined' : 'Pending review'}
+                {isLoading
+                  ? 'Checking status…'
+                  : request?.status === 'rejected'
+                    ? 'Request declined'
+                    : formatAppointmentStatusLabel(request?.status ?? 'pending')}
               </Text>
             </View>
           ) : null}
@@ -444,7 +490,15 @@ export function AppointmentStatusScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
 
-  const { requests, isLoading, error: loadError } = useStudentAppointments();
+  const {
+    requests,
+    isLoading,
+    isLoadingOlder,
+    hasMore,
+    loadOlder,
+    error: loadError,
+    paginationError,
+  } = useStudentAppointments();
   const hasApprovedRequest = requests.some((request) => request.status === 'approved');
 
   return (
@@ -452,6 +506,7 @@ export function AppointmentStatusScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Appointment Status" subtitle="Latest request update" backTo="/home" />
         {loadError ? <ErrorBanner message={loadError} /> : null}
+        {paginationError ? <ErrorBanner message={paginationError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {requests.length ? (
           requests.map((request) => (
@@ -459,7 +514,7 @@ export function AppointmentStatusScreen() {
               <View style={styles.rowBetween}>
                 <Text style={styles.itemTitle}>{request.service}</Text>
                 <Badge
-                  label={request.status[0].toUpperCase() + request.status.slice(1)}
+                  label={formatAppointmentStatusLabel(request.status)}
                   tone={request.status === 'approved' ? 'green' : 'warm'}
                 />
               </View>
@@ -483,6 +538,11 @@ export function AppointmentStatusScreen() {
             <Text style={styles.primaryButtonText}>Continue to Queue</Text>
           </Pressable>
         ) : null}
+        <LoadOlderAppointmentsButton
+          hasMore={hasMore}
+          isLoading={isLoadingOlder}
+          onPress={() => void loadOlder()}
+        />
       </ScrollView>
     </AppScreen>
   );
@@ -492,10 +552,15 @@ export function MyAppointmentsScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
 
-  const { requests, isLoading, error } = useStudentAppointments();
-  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
-  const [processingId, setProcessingId] = useState<string>();
-  const [actionError, setActionError] = useState<string>();
+  const {
+    requests,
+    isLoading,
+    isLoadingOlder,
+    hasMore,
+    loadOlder,
+    error,
+    paginationError,
+  } = useStudentAppointments();
   const today = formatLocalDate(new Date());
 
   return (
@@ -503,14 +568,14 @@ export function MyAppointmentsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="My Queue Requests" subtitle="Upcoming and recent requests" backTo="/home" />
         {error ? <ErrorBanner message={error} /> : null}
-        {actionError ? <ErrorBanner message={actionError} /> : null}
+        {paginationError ? <ErrorBanner message={paginationError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {requests.map((request) => (
           <View key={request.id} style={styles.appointmentStatusCard}>
             <View style={styles.rowBetween}>
               <Text style={styles.itemTitle}>{request.service}</Text>
               <Badge
-                label={request.status[0].toUpperCase() + request.status.slice(1)}
+                label={formatAppointmentStatusLabel(request.status)}
                 tone={['approved', 'serving', 'completed'].includes(request.status) ? 'green' : 'warm'}
               />
             </View>
@@ -522,90 +587,35 @@ export function MyAppointmentsScreen() {
                 <AppointmentQrTicket request={request} />
               </>
             ) : null}
-            {['pending', 'approved'].includes(request.status) && !request.arrivedAt ? (
-              <View style={styles.actionRow}>
-                {request.date > today ? (
-                  <Pressable
-                    style={[styles.secondaryButton, { flex: 1 }]}
-                    accessibilityRole="button"
-                    onPress={() =>
-                      router.push({
-                        pathname: '/schedule',
-                        params: {
-                          serviceTitle: request.service,
-                          requestId: request.id,
-                          originalDate: request.date,
-                        },
-                      })
-                    }>
-                    <Text style={styles.secondaryButtonText}>Reschedule</Text>
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  style={[
-                    styles.secondaryButton,
-                    { flex: request.date > today ? 1 : undefined },
-                    { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSoft },
-                  ]}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    setActionError(undefined);
-                    setCancelConfirmationId(request.id);
-                  }}>
-                  <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
-                    Cancel appointment
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-            {cancelConfirmationId === request.id ? (
-              <View style={styles.queueActionHint}>
-                <Text style={styles.itemTitle}>Cancel this appointment?</Text>
-                <Text style={styles.itemSubtle}>
-                  It will be removed from the queue, and its place will be released.
-                </Text>
-                <View style={styles.actionRow}>
-                  <Pressable
-                    style={[styles.primaryButton, { flex: 1 }]}
-                    disabled={processingId === request.id}
-                    accessibilityRole="button"
-                    onPress={async () => {
-                      setProcessingId(request.id);
-                      setActionError(undefined);
-                      try {
-                        await cancelAppointmentRequest(request.id);
-                        setCancelConfirmationId(undefined);
-                      } catch (cancelError) {
-                        setActionError(
-                          cancelError instanceof Error
-                            ? cancelError.message
-                            : 'Could not cancel this appointment.',
-                        );
-                      } finally {
-                        setProcessingId(undefined);
-                      }
-                    }}>
-                    {processingId === request.id ? (
-                      <ActivityIndicator color={palette.white} />
-                    ) : (
-                      <Text style={styles.primaryButtonText}>Confirm cancel</Text>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    style={[styles.secondaryButton, { flex: 1 }]}
-                    disabled={processingId === request.id}
-                    accessibilityRole="button"
-                    onPress={() => setCancelConfirmationId(undefined)}>
-                    <Text style={styles.secondaryButtonText}>Keep appointment</Text>
-                  </Pressable>
-                </View>
-              </View>
+            {['pending', 'approved'].includes(request.status) &&
+            !request.arrivedAt &&
+            request.date > today ? (
+              <Pressable
+                style={styles.secondaryButton}
+                accessibilityRole="button"
+                onPress={() =>
+                  router.push({
+                    pathname: '/schedule',
+                    params: {
+                      serviceTitle: request.service,
+                      requestId: request.id,
+                      originalDate: request.date,
+                    },
+                  })
+                }>
+                <Text style={styles.secondaryButtonText}>Reschedule</Text>
+              </Pressable>
             ) : null}
           </View>
         ))}
         {!isLoading && !error && !requests.length ? (
           <EmptyState title="No appointments yet" message="Your upcoming and past appointments will appear here." />
         ) : null}
+        <LoadOlderAppointmentsButton
+          hasMore={hasMore}
+          isLoading={isLoadingOlder}
+          onPress={() => void loadOlder()}
+        />
         <View style={styles.buttonStack}>
           <Pressable style={styles.primaryButton} onPress={() => router.push('/services')}>
             <Text style={styles.primaryButtonText}>Book an Appointment</Text>
@@ -623,7 +633,15 @@ export function QueueHistoryScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
 
-  const { requests, isLoading, error } = useStudentAppointments();
+  const {
+    requests,
+    isLoading,
+    isLoadingOlder,
+    hasMore,
+    loadOlder,
+    error,
+    paginationError,
+  } = useStudentAppointments();
   const history = requests.filter(
     (request) =>
       request.status === 'completed' ||
@@ -636,13 +654,14 @@ export function QueueHistoryScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Queue History" subtitle="Past visits and missed appointments" backTo="/profile" />
         {error ? <ErrorBanner message={error} /> : null}
+        {paginationError ? <ErrorBanner message={paginationError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {history.map((request) => (
           <View key={request.id} style={styles.compactCard}>
             <View style={styles.rowBetween}>
               <Text style={styles.itemTitle}>{request.service}</Text>
               <Badge
-                label={request.status[0].toUpperCase() + request.status.slice(1)}
+                label={formatAppointmentStatusLabel(request.status)}
                 tone={request.status === 'completed' ? 'green' : 'warm'}
               />
             </View>
@@ -656,12 +675,17 @@ export function QueueHistoryScreen() {
             </Text>
           </View>
         ))}
-        {!isLoading && !error && !history.length ? (
+        {!isLoading && !error && !hasMore && !history.length ? (
           <EmptyState
             title="No queue history"
             message="Completed visits and missed appointments will appear here."
           />
         ) : null}
+        <LoadOlderAppointmentsButton
+          hasMore={hasMore}
+          isLoading={isLoadingOlder}
+          onPress={() => void loadOlder()}
+        />
       </ScrollView>
     </AppScreen>
   );
@@ -671,10 +695,15 @@ export function NotificationsScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
 
-  const { requests, isLoading, error } = useStudentAppointments();
-  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
-  const [processingId, setProcessingId] = useState<string>();
-  const [actionError, setActionError] = useState<string>();
+  const {
+    requests,
+    isLoading,
+    isLoadingOlder,
+    hasMore,
+    loadOlder,
+    error,
+    paginationError,
+  } = useStudentAppointments();
   const notificationRequests = requests.filter((request) => request.status !== 'pending');
   const today = formatLocalDate(new Date());
 
@@ -683,7 +712,7 @@ export function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Notifications" subtitle="Queue and appointment alerts" backTo="/home" />
         {error ? <ErrorBanner message={error} /> : null}
-        {actionError ? <ErrorBanner message={actionError} /> : null}
+        {paginationError ? <ErrorBanner message={paginationError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {notificationRequests.length ? (
           notificationRequests.map((request) => (
@@ -739,81 +768,18 @@ export function NotificationsScreen() {
                   <Pressable style={styles.primaryButton} onPress={() => router.push('/queue')}>
                     <Text style={styles.primaryButtonText}>View Queue</Text>
                   </Pressable>
-                  {request.status === 'approved' && !request.arrivedAt ? (
-                    cancelConfirmationId === request.id ? (
-                      <View style={styles.queueActionHint}>
-                        <Text style={styles.itemTitle}>Cancel this appointment?</Text>
-                        <Text style={styles.itemSubtle}>
-                          It will be removed from the queue, and its place will be released.
-                        </Text>
-                        <View style={styles.actionRow}>
-                          <Pressable
-                            style={[
-                              styles.primaryButton,
-                              { flex: 1, backgroundColor: palette.dangerAction },
-                            ]}
-                            disabled={processingId === request.id}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Confirm cancellation for ${request.service}`}
-                            onPress={async () => {
-                              setProcessingId(request.id);
-                              setActionError(undefined);
-                              try {
-                                await cancelAppointmentRequest(request.id);
-                                setCancelConfirmationId(undefined);
-                              } catch (cancelError) {
-                                setActionError(
-                                  cancelError instanceof Error
-                                    ? cancelError.message
-                                    : 'Could not cancel this appointment.',
-                                );
-                              } finally {
-                                setProcessingId(undefined);
-                              }
-                            }}>
-                            {processingId === request.id ? (
-                              <ActivityIndicator color={palette.white} />
-                            ) : (
-                              <Text style={styles.primaryButtonText}>Confirm cancel</Text>
-                            )}
-                          </Pressable>
-                          <Pressable
-                            style={[styles.secondaryButton, { flex: 1 }]}
-                            disabled={processingId === request.id}
-                            accessibilityRole="button"
-                            onPress={() => setCancelConfirmationId(undefined)}>
-                            <Text style={styles.secondaryButtonText}>Keep appointment</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    ) : (
-                      <Pressable
-                        style={[
-                          styles.secondaryButton,
-                          {
-                            borderColor: palette.dangerBorder,
-                            backgroundColor: palette.dangerSoft,
-                          },
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Cancel ${request.service} appointment`}
-                        onPress={() => {
-                          setActionError(undefined);
-                          setCancelConfirmationId(request.id);
-                        }}>
-                        <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
-                          Cancel appointment
-                        </Text>
-                      </Pressable>
-                    )
-                  ) : null}
                 </>
               ) : null}
             </View>
           ))
-        ) : !isLoading && !error ? (
+        ) : !isLoading && !error && !hasMore ? (
           <EmptyState title="No notifications" message="Appointment approvals and queue updates will appear here." />
         ) : null}
+        <LoadOlderAppointmentsButton
+          hasMore={hasMore}
+          isLoading={isLoadingOlder}
+          onPress={() => void loadOlder()}
+        />
       </ScrollView>
     </AppScreen>
   );

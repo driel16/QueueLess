@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
 import { Plus, Ticket } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
@@ -10,23 +11,21 @@ import {
   Badge,
   EmptyState,
   ErrorBanner,
+  formatAppointmentStatusLabel,
 } from '../../components';
 import { getCurrentStudentProfile } from '../../auth/auth';
 import type { StudentProfile } from '../../auth/auth';
-import { cancelAppointmentRequest } from '../../appointments/appointment-requests';
 import { useQueuelessPalette } from '../../palette';
 import { useQueuelessStyles } from '../../styles';
 import { useStudentAppointments } from '../../appointments/hooks/use-student-appointments';
 import { formatLocalDate } from '../../schedule/schedule-utils';
+import { getFirebaseAuth } from '@/lib/firebase';
 
 export default function HomeScreen() {
   const palette = useQueuelessPalette();
   const styles = useQueuelessStyles();
   const { width } = useWindowDimensions();
   const compactLayout = width < 360;
-  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
-  const [processingId, setProcessingId] = useState<string>();
-  const [actionError, setActionError] = useState<string>();
 
   const {
     requests: appointments,
@@ -39,24 +38,50 @@ export default function HomeScreen() {
 
   useEffect(() => {
     let isMounted = true;
+    let authGeneration = 0;
 
-    getCurrentStudentProfile()
-      .then((currentProfile) => {
-        if (isMounted) setProfile(currentProfile);
-      })
-      .catch((error: unknown) => {
-        if (isMounted) {
-          setProfileError(
-            error instanceof Error ? error.message : 'Could not load your account details.',
-          );
+    const unsubscribe = onAuthStateChanged(
+      getFirebaseAuth(),
+      (user) => {
+        authGeneration += 1;
+        const currentGeneration = authGeneration;
+        if (!user) {
+          setProfile(null);
+          setProfileError(undefined);
+          setIsLoading(false);
+          return;
         }
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+
+        setIsLoading(true);
+        setProfileError(undefined);
+        getCurrentStudentProfile()
+          .then((currentProfile) => {
+            if (isMounted && currentGeneration === authGeneration) {
+              setProfile(currentProfile);
+            }
+          })
+          .catch((error: unknown) => {
+            if (isMounted && currentGeneration === authGeneration) {
+              setProfileError(
+                error instanceof Error ? error.message : 'Could not load your account details.',
+              );
+            }
+          })
+          .finally(() => {
+            if (isMounted && currentGeneration === authGeneration) setIsLoading(false);
+          });
+      },
+      (error) => {
+        if (isMounted) {
+          setProfileError(error.message);
+          setIsLoading(false);
+        }
+      },
+    );
 
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -89,78 +114,6 @@ export default function HomeScreen() {
       ['pending', 'approved'].includes(appointment.status) &&
       appointment.date > today &&
       !appointment.arrivedAt
-    );
-  }
-
-  function canCancel(appointment: (typeof appointments)[number]) {
-    return (
-      ['pending', 'approved'].includes(appointment.status) &&
-      appointment.date >= today &&
-      !appointment.arrivedAt
-    );
-  }
-
-  async function confirmCancellation(appointmentId: string) {
-    setProcessingId(appointmentId);
-    setActionError(undefined);
-    try {
-      await cancelAppointmentRequest(appointmentId);
-      setCancelConfirmationId(undefined);
-    } catch (cancelError) {
-      setActionError(
-        cancelError instanceof Error ? cancelError.message : 'Could not cancel this appointment.',
-      );
-    } finally {
-      setProcessingId(undefined);
-    }
-  }
-
-  function renderCancellationAction(appointment: (typeof appointments)[number]) {
-    if (!canCancel(appointment)) return null;
-
-    return cancelConfirmationId === appointment.id ? (
-      <View style={styles.queueActionHint}>
-        <Text style={styles.itemTitle}>Cancel this appointment?</Text>
-        <Text style={styles.itemSubtle}>
-          It will be removed from the queue, and its place will be released.
-        </Text>
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.primaryButton, { flex: 1, backgroundColor: palette.dangerAction }]}
-            disabled={processingId === appointment.id}
-            accessibilityRole="button"
-            onPress={() => void confirmCancellation(appointment.id)}>
-            {processingId === appointment.id ? (
-              <ActivityIndicator color={palette.white} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Confirm cancel</Text>
-            )}
-          </Pressable>
-          <Pressable
-            style={[styles.secondaryButton, { flex: 1 }]}
-            disabled={processingId === appointment.id}
-            accessibilityRole="button"
-            onPress={() => setCancelConfirmationId(undefined)}>
-            <Text style={styles.secondaryButtonText}>Keep appointment</Text>
-          </Pressable>
-        </View>
-      </View>
-    ) : (
-      <Pressable
-        style={[
-          styles.secondaryButton,
-          { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSoft },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={`Cancel ${appointment.service} appointment`}
-        onPress={() => {
-          setActionError(undefined);
-          setCancelConfirmationId(appointment.id);
-        }}>
-        <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
-          Cancel appointment
-        </Text>
-      </Pressable>
     );
   }
 
@@ -203,7 +156,6 @@ export default function HomeScreen() {
         )}
         {profileError ? <ErrorBanner message={profileError} /> : null}
         {appointmentsError ? <ErrorBanner message={appointmentsError} /> : null}
-        {actionError ? <ErrorBanner message={actionError} /> : null}
         <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
         {appointmentsLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {upcomingAppointments.map((appointment) =>
@@ -220,19 +172,18 @@ export default function HomeScreen() {
                   <Text style={styles.secondaryButtonText}>Reschedule appointment</Text>
                 </Pressable>
               ) : null}
-              {renderCancellationAction(appointment)}
             </View>
           ) : (
             <View key={appointment.id} style={styles.appointmentStatusCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.itemTitle}>{appointment.service}</Text>
                 <Badge
-                  label={appointment.status[0].toUpperCase() + appointment.status.slice(1)}
+                  label={formatAppointmentStatusLabel(appointment.status)}
                   tone="warm"
                 />
               </View>
               <Text style={styles.itemSubtle}>
-                {appointment.date}
+                {appointment.date} · {formatAppointmentStatusLabel(appointment.status)}
               </Text>
               {canReschedule(appointment) ? (
                 <Pressable
@@ -243,7 +194,6 @@ export default function HomeScreen() {
                   <Text style={styles.secondaryButtonText}>Reschedule appointment</Text>
                 </Pressable>
               ) : null}
-              {renderCancellationAction(appointment)}
             </View>
           ),
         )}
@@ -287,7 +237,7 @@ export default function HomeScreen() {
             <View key={appointment.id} style={styles.compactCard}>
               <Text style={styles.itemTitle}>{appointment.service}</Text>
               <Text style={styles.itemSubtle}>
-                {appointment.date} · {appointment.status[0].toUpperCase() + appointment.status.slice(1)}
+                {appointment.date} · {formatAppointmentStatusLabel(appointment.status)}
               </Text>
             </View>
           ))}

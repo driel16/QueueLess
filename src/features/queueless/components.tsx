@@ -1,9 +1,29 @@
 import { router, usePathname } from 'expo-router';
-import { AlertCircle, ArrowLeft, AtSign, Eye, EyeOff, Inbox, LockKeyhole } from 'lucide-react-native';
+import {
+  AlertCircle,
+  ArrowLeft,
+  AtSign,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Inbox,
+  LockKeyhole,
+} from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import type { ScrollViewProps, StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createAppointmentQrPayload } from './appointments/appointment-qr';
@@ -31,6 +51,23 @@ export function AppScreen({ children }: { children: React.ReactNode }) {
     <SafeAreaView style={styles.safeArea} edges={edges}>
       <View style={styles.screen}>{children}</View>
     </SafeAreaView>
+  );
+}
+
+export function KeyboardAvoidingScrollView({
+  children,
+  ...scrollViewProps
+}: ScrollViewProps) {
+  const styles = useQueuelessStyles();
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView keyboardShouldPersistTaps="handled" {...scrollViewProps}>
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -140,18 +177,66 @@ export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss
   );
 }
 
-export function EmptyState({ title, message }: { title: string; message: string }) {
+export function EmptyState({
+  title,
+  message,
+  style,
+}: {
+  title: string;
+  message: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
 
   return (
-    <View style={styles.emptyState}>
+    <View style={[styles.emptyState, style]}>
       <View style={styles.emptyStateIcon}>
         <Inbox size={22} color={palette.greenDark} />
       </View>
       <Text style={styles.emptyStateTitle}>{title}</Text>
       <Text style={styles.emptyStateMessage}>{message}</Text>
     </View>
+  );
+}
+
+export function TransactionCompletedDialog({
+  visible,
+  onContinue,
+}: {
+  visible: boolean;
+  onContinue: () => void;
+}) {
+  const styles = useQueuelessStyles();
+  const palette = useQueuelessPalette();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onContinue}>
+      <View style={styles.scheduleSavedBackdrop}>
+        <View
+          style={styles.scheduleSavedDialog}
+          accessibilityViewIsModal
+          accessibilityLabel="Transaction completed successfully">
+          <View style={styles.scheduleSavedIcon}>
+            <CheckCircle2 size={30} color={palette.greenDark} />
+          </View>
+          <Text style={styles.scheduleSavedTitle}>Transaction completed</Text>
+          <Text style={styles.itemSubtle}>
+            Both the cashier and student confirmed. The next student has not been called.
+          </Text>
+          <Pressable
+            style={[styles.primaryButton, styles.scheduleSavedDoneButton]}
+            accessibilityRole="button"
+            onPress={onContinue}>
+            <Text style={styles.primaryButtonText}>Back to Active Queue</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -197,6 +282,20 @@ export function StaffHeader({ title, subtitle, backTo }: { title: string; subtit
       ) : null}
     </View>
   );
+}
+
+export function formatAppointmentStatusLabel(status?: string | null) {
+  const normalizedStatus = typeof status === 'string' ? status.trim() : '';
+
+  if (!normalizedStatus) {
+    return 'Pending';
+  }
+
+  return normalizedStatus
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
 }
 
 export function Badge({ label, tone }: { label: string; tone: 'warm' | 'green' }) {

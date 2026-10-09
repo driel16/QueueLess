@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { useState } from 'react';
 
 import {
   AppScreen,
@@ -8,10 +7,10 @@ import {
   AppointmentQueueSummary,
   EmptyState,
   ErrorBanner,
+  formatAppointmentStatusLabel,
   Header,
   QueueProgress,
 } from '../../components';
-import { cancelAppointmentRequest } from '../../appointments/appointment-requests';
 import { useQueuelessPalette } from '../../palette';
 import { useQueuelessStyles } from '../../styles';
 import { useStudentAppointments } from '../../appointments/hooks/use-student-appointments';
@@ -21,9 +20,6 @@ export default function QueueScreen() {
   const styles = useQueuelessStyles();
 
   const { requests, isLoading, error } = useStudentAppointments();
-  const [cancelConfirmationId, setCancelConfirmationId] = useState<string>();
-  const [processingId, setProcessingId] = useState<string>();
-  const [actionError, setActionError] = useState<string>();
   const approvedRequests = requests
     .filter((request) => request.status === 'approved' || request.status === 'serving')
     .sort(
@@ -32,80 +28,6 @@ export default function QueueScreen() {
         (first.queueNumber ?? 0) - (second.queueNumber ?? 0),
     );
   const pendingRequests = requests.filter((request) => request.status === 'pending');
-
-  const renderCancellationAction = (request: (typeof requests)[number]) => {
-    if (
-      (request.status !== 'pending' && request.status !== 'approved') ||
-      request.arrivedAt
-    ) {
-      return null;
-    }
-
-    if (cancelConfirmationId !== request.id) {
-      return (
-        <Pressable
-          style={[
-            styles.secondaryButton,
-            { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSoft },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Cancel appointment for ${request.service}`}
-          onPress={() => {
-            setActionError(undefined);
-            setCancelConfirmationId(request.id);
-          }}>
-          <Text style={[styles.secondaryButtonText, { color: palette.danger }]}>
-            Cancel appointment
-          </Text>
-        </Pressable>
-      );
-    }
-
-    return (
-      <View style={styles.queueActionHint}>
-        <Text style={styles.itemTitle}>Cancel this appointment?</Text>
-        <Text style={styles.itemSubtle}>
-          It will be removed from the queue, and its place will be released.
-        </Text>
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.primaryButton, { flex: 1, backgroundColor: palette.dangerAction }]}
-            disabled={processingId === request.id}
-            accessibilityRole="button"
-            accessibilityLabel={`Confirm cancellation for ${request.service}`}
-            onPress={async () => {
-              setProcessingId(request.id);
-              setActionError(undefined);
-              try {
-                await cancelAppointmentRequest(request.id);
-                setCancelConfirmationId(undefined);
-              } catch (cancelError) {
-                setActionError(
-                  cancelError instanceof Error
-                    ? cancelError.message
-                    : 'Could not cancel this appointment.',
-                );
-              } finally {
-                setProcessingId(undefined);
-              }
-            }}>
-            {processingId === request.id ? (
-              <ActivityIndicator color={palette.white} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Confirm cancel</Text>
-            )}
-          </Pressable>
-          <Pressable
-            style={[styles.secondaryButton, { flex: 1 }]}
-            disabled={processingId === request.id}
-            accessibilityRole="button"
-            onPress={() => setCancelConfirmationId(undefined)}>
-            <Text style={styles.secondaryButtonText}>Keep appointment</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  };
 
   return (
     <AppScreen>
@@ -116,7 +38,6 @@ export default function QueueScreen() {
           backTo="/home"
         />
         {error ? <ErrorBanner message={error} /> : null}
-        {actionError ? <ErrorBanner message={actionError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
         {approvedRequests.length ? (
           approvedRequests.map((request) => (
@@ -132,7 +53,6 @@ export default function QueueScreen() {
                 onPress={() => router.push('/appointment-status')}>
                 <Text style={styles.secondaryButtonText}>View Appointment Status</Text>
               </Pressable>
-              {renderCancellationAction(request)}
             </View>
           ))
         ) : !isLoading && pendingRequests.length ? (
@@ -140,7 +60,7 @@ export default function QueueScreen() {
             <View key={request.id} style={styles.appointmentStatusCard}>
               <View style={styles.rowBetween}>
                 <Text style={styles.itemTitle}>{request.service}</Text>
-                <Text style={styles.itemSubtle}>Pending</Text>
+                <Text style={styles.itemSubtle}>{formatAppointmentStatusLabel(request.status)}</Text>
               </View>
               <Text style={styles.itemSubtle}>{request.date}</Text>
               <QueueProgress step={0} />
@@ -148,7 +68,6 @@ export default function QueueScreen() {
                 Request received. The cashier must approve it before your queue number and QR ticket
                 are ready.
               </Text>
-              {renderCancellationAction(request)}
             </View>
           ))
         ) : !isLoading && !error ? (

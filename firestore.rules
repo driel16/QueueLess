@@ -44,18 +44,6 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
     }
 
-    function currentBusinessDate() {
-      // Appointment dates use the cashier's fixed UTC+8 local calendar.
-      let localTime = request.time + duration.value(8, 'h');
-      return localTime.year().toString()
-        + '-'
-        + (localTime.month() < 10 ? '0' : '')
-        + localTime.month().toString()
-        + '-'
-        + (localTime.day() < 10 ? '0' : '')
-        + localTime.day().toString();
-    }
-
     function validAppointmentCapacityRelease(queueDate) {
       let appointmentId = request.resource.data.get('lastCancellationId', '');
       let appointmentPath = /databases/$(database)/documents/appointments/$(appointmentId);
@@ -64,7 +52,6 @@ service cloud.firestore {
         && get(appointmentPath).data.studentId == request.auth.uid
         && get(appointmentPath).data.date == queueDate
         && get(appointmentPath).data.status in ['pending', 'approved']
-        && get(appointmentPath).data.date >= currentBusinessDate()
         && !get(appointmentPath).data.keys().hasAny(['arrivedAt'])
         && getAfter(appointmentPath).data.status == 'cancelled';
     }
@@ -97,17 +84,98 @@ service cloud.firestore {
         && getAfter(appointmentPath).data['status'] == 'pending';
     }
 
+    function hasActiveStudentBookingHold(studentId) {
+      let restrictionPath = /databases/$(database)/documents/studentBookingRestrictions/$(studentId);
+      return exists(restrictionPath)
+        && get(restrictionPath).data.get('blockedUntil', null) is timestamp
+        && get(restrictionPath).data.get('latestIncidentAt', null) is timestamp
+        && get(restrictionPath).data.blockedUntil > request.time
+        && get(restrictionPath).data.get('overrideForIncidentAt', null)
+          != get(restrictionPath).data.latestIncidentAt;
+    }
+
+    function isCashierServiceAvailable(serviceTitle) {
+      return (
+        serviceTitle == 'Tuition Payment'
+          && (!exists(/databases/$(database)/documents/serviceAvailability/tuition-payment)
+            || get(/databases/$(database)/documents/serviceAvailability/tuition-payment).data.get('enabled', true) != false)
+      )
+        || (
+          serviceTitle == 'Document Request'
+          && (!exists(/databases/$(database)/documents/serviceAvailability/document-request)
+            || get(/databases/$(database)/documents/serviceAvailability/document-request).data.get('enabled', true) != false)
+        )
+        || (
+          serviceTitle == 'ID Processing'
+          && (!exists(/databases/$(database)/documents/serviceAvailability/id-processing)
+            || get(/databases/$(database)/documents/serviceAvailability/id-processing).data.get('enabled', true) != false)
+        )
+        || (
+          serviceTitle == 'Scholarship Inquiry'
+          && (!exists(/databases/$(database)/documents/serviceAvailability/scholarship-inquiry)
+            || get(/databases/$(database)/documents/serviceAvailability/scholarship-inquiry).data.get('enabled', true) != false)
+        )
+        || (
+          serviceTitle == 'General Transaction'
+          && (!exists(/databases/$(database)/documents/serviceAvailability/general-transaction)
+            || get(/databases/$(database)/documents/serviceAvailability/general-transaction).data.get('enabled', true) != false)
+        );
+    }
+
+    function isValidAppointmentBookingDate(bookingDate) {
+      return bookingDate is string
+        && bookingDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!exists(/databases/$(database)/documents/settings/operatingHours)
+          || !(bookingDate in get(
+            /databases/$(database)/documents/settings/operatingHours
+          ).data.get('closedDates', [])));
+    }
+
+    function validStudentAppointmentCreation(appointmentId) {
+      return request.resource.data.keys().hasOnly([
+          'studentId',
+          'studentName',
+          'service',
+          'date',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'studentId',
+          'studentName',
+          'service',
+          'date',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.studentId == request.auth.uid
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student'
+        && request.resource.data.studentName
+          == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+        && isCashierServiceAvailable(request.resource.data['service'])
+        && isValidAppointmentBookingDate(request.resource.data.get('date', ''))
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && !hasActiveStudentBookingHold(request.auth.uid)
+        && existsAfter(
+          /databases/$(database)/documents/activeAppointmentLocks/$(request.auth.uid)
+        )
+        && getAfter(
+          /databases/$(database)/documents/activeAppointmentLocks/$(request.auth.uid)
+        ).data.appointmentId == appointmentId
+        && existsAfter(
+          /databases/$(database)/documents/appointmentCapacity/$(request.resource.data['date'])
+        )
+        && getAfter(
+          /databases/$(database)/documents/appointmentCapacity/$(request.resource.data['date'])
+        ).data.lastBookingId == appointmentId;
+    }
+
     function appointmentCapacityLimit() {
       return exists(/databases/$(database)/documents/settings/queueCapacity)
         ? get(/databases/$(database)/documents/settings/queueCapacity).data.dailyLimit
         : 100;
-    }
-
-    function validAppointmentCapacityForCreate(appointmentId) {
-      let capacityPath = /databases/$(database)/documents/appointmentCapacity/$(request.resource.data.date);
-      return existsAfter(capacityPath)
-        && getAfter(capacityPath).data['lastBookingId'] == appointmentId
-        && getAfter(capacityPath).data['appointmentsBooked'] <= appointmentCapacityLimit();
     }
 
     function validActiveAppointmentLock(appointmentId, studentId) {
@@ -146,7 +214,6 @@ service cloud.firestore {
         && exists(previousPath)
         && get(previousPath).data.studentId == studentId
         && get(previousPath).data.status in ['pending', 'approved']
-        && get(previousPath).data.date >= currentBusinessDate()
         && !get(previousPath).data.keys().hasAny(['arrivedAt'])
         && getAfter(previousPath).data.status == 'cancelled'
         && validActiveAppointmentLock(replacementId, studentId);
@@ -398,7 +465,9 @@ service cloud.firestore {
     }
 
     match /appointments/{appointmentId} {
-      allow create: if false;
+      allow create: if isStudent()
+        && isOwner(request.resource.data.studentId)
+        && validStudentAppointmentCreation(appointmentId);
 
       allow read: if isStaff()
         || (isStudent() && resource.data['studentId'] == request.auth.uid);
@@ -538,7 +607,6 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           )
         )
-      )
       || (
         isStudent()
         && resource.data['studentId'] == request.auth.uid
@@ -601,7 +669,7 @@ service cloud.firestore {
           isStaff()
           && getAfter(
             /databases/$(database)/documents/appointments/$(resource.data.appointmentId)
-          ).data.status == 'rejected'
+          ).data.status in ['rejected', 'completed']
           && canReleaseActiveAppointmentLock(studentId)
         );
     }

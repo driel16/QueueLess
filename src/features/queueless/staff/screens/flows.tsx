@@ -15,7 +15,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Badge, EmptyState, ErrorBanner, Field, StaffHeader, StaffScreen } from '../../components';
+import {
+  Badge,
+  EmptyState,
+  ErrorBanner,
+  Field,
+  KeyboardAvoidingScrollView,
+  StaffHeader,
+  StaffScreen,
+  TransactionCompletedDialog,
+  formatAppointmentStatusLabel,
+} from '../../components';
 import {
   EmailVerificationRequiredError,
   getAuthErrorMessage,
@@ -85,9 +95,8 @@ export function StaffLoginScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView
+      <KeyboardAvoidingScrollView
         contentContainerStyle={styles.authContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.loginHero}>
           <View style={styles.schoolShield}>
@@ -213,7 +222,7 @@ export function StaffLoginScreen() {
             <Text style={styles.roleSwitchText}>Choose another account type</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingScrollView>
     </SafeAreaView>
   );
 }
@@ -247,9 +256,8 @@ export function StaffSignupScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView
+      <KeyboardAvoidingScrollView
         contentContainerStyle={styles.authContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.loginHero}>
           <View style={styles.schoolShield}>
@@ -427,7 +435,7 @@ export function StaffSignupScreen() {
             <Text style={styles.roleSwitchText}>Already have an account? Staff sign in</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingScrollView>
     </SafeAreaView>
   );
 }
@@ -660,14 +668,16 @@ export function AppointmentRequestsScreen() {
       <FlatList
         data={filteredRequests}
         keyExtractor={(request) => request.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, styles.staffQueueListContent]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         initialNumToRender={10}
         windowSize={7}
         ListHeaderComponent={
-          <>
-            <StaffHeader title="Appointment Requests" subtitle="Review pending student submissions" />
+          <View style={styles.appointmentRequestsHeader}>
+            <View style={styles.appointmentRequestsTitle}>
+              <StaffHeader title="Appointment Requests" subtitle="Review pending student submissions" />
+            </View>
             {loadError ? <ErrorBanner message={loadError} /> : null}
             {actionError ? <ErrorBanner message={actionError} /> : null}
             {bookingRestrictionError ? <ErrorBanner message={bookingRestrictionError} /> : null}
@@ -713,10 +723,10 @@ export function AppointmentRequestsScreen() {
                 ))}
               </View>
             ) : null}
-            <View style={[styles.inputShell, { gap: 10 }]}>
-              <Search size={18} color={palette.muted} />
+            <View style={[styles.inputShell, styles.appointmentSearchShell]}>
+              <Search size={20} color={palette.muted} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.appointmentSearchInput]}
                 value={searchText}
                 onChangeText={setSearchText}
                 placeholder="Search name, service, date or ticket ID"
@@ -730,14 +740,16 @@ export function AppointmentRequestsScreen() {
             {serviceFilters.length > 1 ? (
               <ScrollView
                 horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8 }}>
+                showsHorizontalScrollIndicator={false}>
                 {serviceFilters.map((service) => {
                   const isSelected = activeServiceFilter === service;
                   return (
                     <Pressable
                       key={service}
-                      style={isSelected ? styles.pillButton : styles.outlinePillButton}
+                      style={[
+                        isSelected ? styles.pillButton : styles.outlinePillButton,
+                        styles.appointmentServiceFilter,
+                      ]}
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected }}
                       onPress={() => setSelectedService(service)}>
@@ -749,8 +761,9 @@ export function AppointmentRequestsScreen() {
                 })}
               </ScrollView>
             ) : null}
-          </>
+          </View>
         }
+        ItemSeparatorComponent={() => <View style={styles.staffQueueItemSeparator} />}
         renderItem={({ item: request }) => (
           <View style={styles.compactCard}>
             <Pressable
@@ -768,7 +781,7 @@ export function AppointmentRequestsScreen() {
                   </Text>
                 </View>
                 <Badge
-                  label={request.status[0].toUpperCase() + request.status.slice(1)}
+                    label={formatAppointmentStatusLabel(request.status)}
                   tone={request.status === 'approved' ? 'green' : 'warm'}
                 />
               </View>
@@ -787,7 +800,11 @@ export function AppointmentRequestsScreen() {
                 )}
               </Pressable>
               <Pressable
-                style={[styles.secondaryButton, { flex: 1 }]}
+                style={[
+                  styles.secondaryButton,
+                  styles.activeQueueSkipButton,
+                  { flex: 1 },
+                ]}
                 disabled={processingId === request.id}
                 accessibilityRole="button"
                 onPress={() => void handleReview(request.id, 'rejected')}>
@@ -798,14 +815,17 @@ export function AppointmentRequestsScreen() {
         )}
         ListEmptyComponent={
           !isLoading && !loadError ? (
-            <EmptyState
-              title={requests.length ? 'No matching requests' : 'No pending requests'}
-              message={
-                requests.length
-                  ? 'Try another search term or service filter.'
-                  : 'Only appointments awaiting approval or rejection appear here.'
-              }
-            />
+            <View style={styles.staffQueueEmptySlot}>
+              <EmptyState
+                style={styles.appointmentRequestEmptyState}
+                title={requests.length ? 'No matching requests' : 'No pending requests'}
+                message={
+                  requests.length
+                    ? 'Try another search term or service filter.'
+                    : 'Only appointments awaiting approval or rejection appear here.'
+                }
+              />
+            </View>
           ) : null
         }
       />
@@ -871,7 +891,7 @@ export function AppointmentDetailsScreen() {
           <View style={styles.rowBetween}>
             <Text style={styles.itemTitle}>{request.studentName}</Text>
             <Badge
-              label={request.status[0].toUpperCase() + request.status.slice(1)}
+              label={formatAppointmentStatusLabel(request.status)}
               tone={request.status === 'approved' ? 'green' : 'warm'}
             />
           </View>
@@ -995,6 +1015,7 @@ export function ActiveQueueScreen() {
   );
   const [actionError, setActionError] = useState<string>();
   const [updatingAction, setUpdatingAction] = useState<string>();
+  const [showTransactionCompleted, setShowTransactionCompleted] = useState(false);
   const isUpdating = updatingAction !== undefined;
   const serving = todayRequests.find((request) => request.status === 'serving');
   const waiting = todayRequests.filter((request) => request.status === 'approved');
@@ -1034,39 +1055,41 @@ export function ActiveQueueScreen() {
       <FlatList
         data={isLoading || error ? [] : todayRequests}
         keyExtractor={(request) => request.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, styles.staffQueueListContent]}
         showsVerticalScrollIndicator={false}
         initialNumToRender={10}
         windowSize={7}
         ListHeaderComponent={
-          <>
+          <View style={styles.activeQueueHeader}>
             <StaffHeader title="Active Queue" subtitle="Students waiting to be served" />
             {error ? <ErrorBanner message={error} /> : null}
             {actionError ? <ErrorBanner message={actionError} /> : null}
             <Pressable
-              style={styles.secondaryButton}
+              style={[styles.secondaryButton, styles.activeQueueScanButton]}
               onPress={() => router.push('/cashier-scanner')}
               accessibilityRole="button">
               <Text style={styles.secondaryButtonText}>Scan Student QR</Text>
             </Pressable>
             {serving ? (
-              <>
-                <View style={styles.queueHero}>
+              <View style={styles.activeQueueServingGroup}>
+                <View style={[styles.queueHero, styles.activeQueueHero]}>
                   <Text style={styles.queueLabel}>Now Serving</Text>
                   <Text style={styles.queueNumber}>
                     Q-{String(serving.queueNumber ?? '—').padStart(3, '0')}
                   </Text>
                   <Text style={styles.queueSubtle}>{serving.studentName} · {serving.service}</Text>
                 </View>
-                <Pressable style={styles.primaryButton} onPress={() => router.push('/now-serving')}>
+                <Pressable
+                  style={[styles.primaryButton, styles.openNowServingButton]}
+                  onPress={() => router.push('/now-serving')}>
                   <Text style={styles.primaryButtonText}>Open Now Serving</Text>
                 </Pressable>
-              </>
+              </View>
             ) : null}
             {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}
             {!isLoading && !error ? (
-              <>
-                <View style={styles.actionRow}>
+              <View style={styles.activeQueueControls}>
+                <View style={[styles.actionRow, styles.activeQueueActionRow]}>
                   <Pressable
                     style={[styles.primaryButton, { flex: 1 }]}
                     disabled={isUpdating || checkedInWaiting.length === 0 || Boolean(serving)}
@@ -1093,7 +1116,7 @@ export function ActiveQueueScreen() {
                   ) : null}
                 </View>
                 {serving ? (
-                  <Text style={styles.queueActionHint}>
+                  <Text style={[styles.queueActionHint, styles.activeQueueHint]}>
                     {serving.cashierFinishedAt
                       ? 'Cashier confirmation saved. Waiting for the student to confirm the transaction is finished.'
                       : serving.studentFinishedAt
@@ -1101,13 +1124,13 @@ export function ActiveQueueScreen() {
                         : 'Complete or skip the current appointment before calling the next student.'}
                   </Text>
                 ) : waiting.length === 0 ? (
-                  <Text style={styles.queueActionHint}>
+                  <Text style={[styles.queueActionHint, styles.activeQueueHint]}>
                     {nextUpcoming
                       ? `No approved queue requests are scheduled for today. The next queue date is ${nextUpcoming.date}.`
                       : 'No approved queue requests are scheduled for today. Call Next is available when a student is approved for today.'}
                   </Text>
                 ) : checkedInWaiting.length ? (
-                  <Text style={styles.queueActionHint}>
+                  <Text style={[styles.queueActionHint, styles.activeQueueHint]}>
                     {checkedInWaiting.length === 1
                       ? 'One student is checked in.'
                       : `${checkedInWaiting.length} students are checked in.`}{' '}
@@ -1115,7 +1138,7 @@ export function ActiveQueueScreen() {
                     controls will then appear on both sides.
                   </Text>
                 ) : waiting.length ? (
-                  <Text style={styles.queueActionHint}>
+                  <Text style={[styles.queueActionHint, styles.activeQueueHint]}>
                     {waiting.length === 1
                       ? 'One student is approved but has not checked in yet.'
                       : `${waiting.length} students are approved but have not checked in yet.`}{' '}
@@ -1124,10 +1147,13 @@ export function ActiveQueueScreen() {
                 ) : null}
                 {serving && !serving.cashierFinishedAt ? (
                   <Pressable
-                    style={styles.primaryButton}
+                    style={[styles.primaryButton, styles.finishServingButton]}
                     disabled={isUpdating || Boolean(serving.cashierFinishedAt)}
                     onPress={() =>
-                      void runQueueAction('finish-serving', () => finishAppointment(serving.id))
+                      void runQueueAction('finish-serving', async () => {
+                        const completed = await finishAppointment(serving.id);
+                        if (completed) setShowTransactionCompleted(true);
+                      })
                     }>
                     {updatingAction === 'finish-serving' ? (
                       <ActivityIndicator color={palette.white} />
@@ -1142,10 +1168,11 @@ export function ActiveQueueScreen() {
                     )}
                   </Pressable>
                 ) : null}
-              </>
+              </View>
             ) : null}
-          </>
+          </View>
         }
+        ItemSeparatorComponent={() => <View style={styles.staffQueueItemSeparator} />}
         renderItem={({ item: request }) => (
           <View style={styles.queueRow}>
             <Text style={styles.ticketBox}>
@@ -1159,7 +1186,7 @@ export function ActiveQueueScreen() {
               </Text>
             </View>
             <Badge
-              label={request.status[0].toUpperCase() + request.status.slice(1)}
+              label={formatAppointmentStatusLabel(request.status)}
               tone={request.status === 'serving' ? 'green' : 'warm'}
             />
             {request.status === 'skipped' ? (
@@ -1185,7 +1212,13 @@ export function ActiveQueueScreen() {
         )}
         ListEmptyComponent={
           !isLoading && !error && todayRequests.length === 0 ? (
-            <EmptyState title="The queue is empty" message="Students will appear here after they join the queue." />
+            <View style={styles.staffQueueEmptySlot}>
+              <EmptyState
+                style={styles.activeQueueEmptyState}
+                title="The queue is empty"
+                message="Students will appear here after they join the queue."
+              />
+            </View>
           ) : null
         }
         ListFooterComponent={
@@ -1195,6 +1228,13 @@ export function ActiveQueueScreen() {
             </Text>
           ) : null
         }
+      />
+      <TransactionCompletedDialog
+        visible={showTransactionCompleted}
+        onContinue={() => {
+          setShowTransactionCompleted(false);
+          router.replace('/active-queue');
+        }}
       />
     </StaffScreen>
   );
@@ -1211,6 +1251,7 @@ export function NowServingScreen() {
   );
   const [actionError, setActionError] = useState<string>();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showTransactionCompleted, setShowTransactionCompleted] = useState(false);
 
   const updateServing = async (action: () => Promise<void>) => {
     setIsUpdating(true);
@@ -1226,6 +1267,7 @@ export function NowServingScreen() {
 
   return (
     <StaffScreen>
+      <>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <StaffHeader title="Now Serving" subtitle="Current cashier transaction" backTo="/active-queue" />
         {error ? <ErrorBanner message={error} /> : null}
@@ -1260,7 +1302,12 @@ export function NowServingScreen() {
               <Pressable
                 style={styles.primaryButton}
                 disabled={isUpdating || Boolean(serving.cashierFinishedAt)}
-                onPress={() => void updateServing(() => finishAppointment(serving.id))}>
+                onPress={() =>
+                  void updateServing(async () => {
+                    const completed = await finishAppointment(serving.id);
+                    if (completed) setShowTransactionCompleted(true);
+                  })
+                }>
                 {isUpdating ? (
                   <ActivityIndicator color={palette.white} />
                 ) : (
@@ -1287,6 +1334,14 @@ export function NowServingScreen() {
           <EmptyState title="No active ticket" message="Call the next approved appointment from the active queue." />
         ) : null}
       </ScrollView>
+      <TransactionCompletedDialog
+        visible={showTransactionCompleted}
+        onContinue={() => {
+          setShowTransactionCompleted(false);
+          router.replace('/active-queue');
+        }}
+      />
+      </>
     </StaffScreen>
   );
 }
@@ -1322,7 +1377,7 @@ export function AppointmentManagementScreen() {
             <View style={styles.rowBetween}>
               <Text style={styles.itemTitle}>{request.studentName}</Text>
               <Badge
-                label={request.status[0].toUpperCase() + request.status.slice(1)}
+                label={formatAppointmentStatusLabel(request.status)}
                 tone={request.status === 'approved' || request.status === 'completed' ? 'green' : 'warm'}
               />
             </View>
@@ -2107,7 +2162,7 @@ export function TransactionRecordsScreen() {
             <View style={styles.rowBetween}>
               <Text style={styles.itemTitle}>{request.studentName}</Text>
               <Badge
-                label={request.status[0].toUpperCase() + request.status.slice(1)}
+                label={formatAppointmentStatusLabel(request.status)}
                 tone={request.status === 'completed' ? 'green' : 'warm'}
               />
             </View>

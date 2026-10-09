@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { AppScreen, EmptyState, ErrorBanner, Header } from '../../components';
+import { AppScreen, EmptyState, ErrorBanner, Header, formatAppointmentStatusLabel } from '../../components';
 import { services } from '../../data';
 import { getServiceAvailability } from '../../schedule/settings';
 import { useQueuelessStyles } from '../../styles';
@@ -56,10 +56,7 @@ export default function ServicesScreen() {
             <Text style={styles.itemTitle}>You already have an active appointment</Text>
             <Text style={styles.itemSubtle}>
               {activeAppointment.service} · {activeAppointment.date} ·{' '}
-              {activeAppointment.status[0].toUpperCase() + activeAppointment.status.slice(1)}
-            </Text>
-            <Text style={styles.itemSubtle}>
-              Complete or cancel this appointment before booking another one.
+              {formatAppointmentStatusLabel(activeAppointment.status)}
             </Text>
             <Pressable
               style={styles.primaryButton}

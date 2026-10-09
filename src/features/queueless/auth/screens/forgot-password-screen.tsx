@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, MailCheck, Send } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ErrorBanner, Field } from '../../components';
+import { ErrorBanner, Field, KeyboardAvoidingScrollView } from '../../components';
 import { getPasswordResetErrorMessage, requestPasswordReset } from '../../auth/auth';
 import { useQueuelessPalette } from '../../palette';
 import { useQueuelessStyles } from '../../styles';
@@ -54,9 +54,8 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView
+      <KeyboardAvoidingScrollView
         contentContainerStyle={styles.authContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <Pressable
           style={styles.resetBackButton}
@@ -123,7 +122,7 @@ export default function ForgotPasswordScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAvoidingScrollView>
     </SafeAreaView>
   );
 }

@@ -27,6 +27,7 @@ import {
 } from '../queue/queue-utils';
 import { formatLocalDate, isOperatingDateAvailable } from '../schedule/schedule-utils';
 import { getOperatingHours } from '../schedule/settings';
+import { services } from '../data';
 import { getFirebaseAuth, getFirebaseFirestore } from '@/lib/firebase';
 
 const appointmentRequestStatuses = [
@@ -133,6 +134,7 @@ export type AppointmentRequestPage = {
   hasMore: boolean;
 };
 
+export const studentAppointmentPageSize = 50;
 export type QueueCapacity = { dailyLimit: number };
 export const defaultQueueCapacity: QueueCapacity = { dailyLimit: 100 };
 
@@ -188,9 +190,16 @@ export async function submitAppointmentRequest({
   service: string;
   date: string;
 }) {
+  const auth = getFirebaseAuth();
+  const user = auth.currentUser;
   const profile = await getCurrentStudentProfile();
-  if (!profile || !profile.emailVerified) {
+  if (!user || !profile || !profile.emailVerified) {
     throw new Error('Sign in with your verified student account before requesting an appointment.');
+  }
+
+  const serviceId = services.find((item) => item.title === service)?.id;
+  if (!serviceId) {
+    throw new Error('Choose a valid cashier service.');
   }
 
   const operatingHours = await getOperatingHours();
@@ -198,23 +207,104 @@ export async function submitAppointmentRequest({
     throw new Error('That date is not available for the cashier queue. Please choose an open date.');
   }
 
-  const createAppointment = httpsCallable<
-    { service: string; date: string },
-    { appointmentId: string }
-  >(getFunctions(getApp(), 'asia-southeast1'), 'createStudentAppointment');
-  const result = await createAppointment({ service, date });
-  return result.data.appointmentId;
-}
+  const db = getFirebaseFirestore();
+  const appointmentRef = doc(collection(db, 'appointments'));
+  const userRef = doc(db, 'users', user.uid);
+  const lockRef = doc(db, 'activeAppointmentLocks', user.uid);
+  const capacityRef = doc(db, 'appointmentCapacity', date);
+  const queueCapacityRef = doc(db, 'settings', 'queueCapacity');
+  const availabilityRef = doc(db, 'serviceAvailability', serviceId);
 
-export async function cancelAppointmentRequest(requestId: string) {
-  const user = getFirebaseAuth().currentUser;
-  if (!user) throw new Error('Sign in before changing your appointment.');
+  await runTransaction(db, async (transaction) => {
+    const [userSnapshot, lockSnapshot, capacitySnapshot, queueCapacitySnapshot, availabilitySnapshot] =
+      await Promise.all([
+        transaction.get(userRef),
+        transaction.get(lockRef),
+        transaction.get(capacityRef),
+        transaction.get(queueCapacityRef),
+        transaction.get(availabilityRef),
+      ]);
 
-  const cancelAppointment = httpsCallable<{ requestId: string }, { cancelled: boolean }>(
-    getFunctions(getApp(), 'asia-southeast1'),
-    'cancelStudentAppointment',
-  );
-  await cancelAppointment({ requestId });
+    if (
+      !userSnapshot.exists() ||
+      userSnapshot.data().role !== 'student' ||
+      typeof userSnapshot.data().displayName !== 'string' ||
+      !userSnapshot.data().displayName.trim()
+    ) {
+      throw new Error('Your student account profile is incomplete. Please contact the cashier.');
+    }
+    if (availabilitySnapshot.exists() && availabilitySnapshot.data().enabled === false) {
+      throw new Error('That cashier service is not accepting appointments right now. Choose another service.');
+    }
+
+    if (lockSnapshot.exists()) {
+      const previousAppointmentId = lockSnapshot.data().appointmentId;
+      if (typeof previousAppointmentId !== 'string' || !previousAppointmentId) {
+        throw new Error('Your appointment lock is invalid. Please contact the cashier.');
+      }
+      const previousAppointment = await transaction.get(
+        doc(db, 'appointments', previousAppointmentId),
+      );
+      if (!previousAppointment.exists()) {
+        throw new Error('Your appointment lock is invalid. Please contact the cashier.');
+      }
+      const previousStatus = previousAppointment.data().status;
+      if (['pending', 'approved', 'serving', 'skipped'].includes(previousStatus)) {
+        throw new Error('You already have an active appointment. Complete or cancel it before booking another.');
+      }
+      if (!['cancelled', 'rejected', 'completed'].includes(previousStatus)) {
+        throw new Error('Your appointment lock is invalid. Please contact the cashier.');
+      }
+    }
+
+    const dailyLimit = queueCapacitySnapshot.data()?.dailyLimit;
+    const limit =
+      typeof dailyLimit === 'number' && Number.isInteger(dailyLimit) && dailyLimit > 0
+        ? dailyLimit
+        : defaultQueueCapacity.dailyLimit;
+    const bookedAppointments = capacitySnapshot.exists()
+      ? capacitySnapshot.data().appointmentsBooked
+      : 0;
+    if (
+      typeof bookedAppointments !== 'number' ||
+      !Number.isInteger(bookedAppointments) ||
+      bookedAppointments < 0
+    ) {
+      throw new Error('The appointment capacity data is invalid. Please contact the cashier.');
+    }
+    if (bookedAppointments >= limit) {
+      throw new Error('The selected date is fully booked. Please choose another date.');
+    }
+
+    transaction.set(appointmentRef, {
+      studentId: user.uid,
+      studentName: userSnapshot.data().displayName.trim(),
+      service,
+      date,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    transaction.set(lockRef, {
+      appointmentId: appointmentRef.id,
+      updatedAt: serverTimestamp(),
+    });
+    if (capacitySnapshot.exists()) {
+      transaction.update(capacityRef, {
+        appointmentsBooked: bookedAppointments + 1,
+        lastBookingId: appointmentRef.id,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      transaction.set(capacityRef, {
+        appointmentsBooked: 1,
+        lastBookingId: appointmentRef.id,
+        initialized: false,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  });
+
+  return appointmentRef.id;
 }
 
 export async function rescheduleAppointmentRequest(requestId: string, newDate: string) {
@@ -304,9 +394,44 @@ export async function getOlderAppointmentRequests(
   };
 }
 
+export async function getOlderStudentAppointmentRequests(
+  cursor: AppointmentRequestCursor,
+  pageSize: number,
+): Promise<AppointmentRequestPage> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error('Sign in to view your appointment requests.');
+
+  const snapshot = await getDocs(
+    query(
+      collection(getFirebaseFirestore(), 'appointments'),
+      where('studentId', '==', user.uid),
+      orderBy('date', 'desc'),
+      startAfter(cursor),
+      limit(pageSize),
+    ),
+  );
+  const requests = snapshot.docs.map((item) => toAppointmentRequest(item.id, item.data()));
+  requests.sort(
+    (first, second) =>
+      second.date.localeCompare(first.date) ||
+      (second.queueNumber ?? 0) - (first.queueNumber ?? 0) ||
+      (second.createdAt?.getTime() ?? 0) - (first.createdAt?.getTime() ?? 0),
+  );
+  return {
+    requests,
+    cursor: snapshot.docs[snapshot.docs.length - 1],
+    hasMore: snapshot.docs.length === pageSize,
+  };
+}
+
 export function subscribeToStudentAppointmentRequests(
-  onRequests: (requests: AppointmentRequest[]) => void,
+  onRequests: (
+    requests: AppointmentRequest[],
+    cursor?: AppointmentRequestCursor,
+    hasMore?: boolean,
+  ) => void,
   onError: (error: Error) => void,
+  pageSize = studentAppointmentPageSize,
 ): Unsubscribe {
   const user = getFirebaseAuth().currentUser;
   if (!user) {
@@ -317,6 +442,8 @@ export function subscribeToStudentAppointmentRequests(
   const requestsQuery = query(
     collection(getFirebaseFirestore(), 'appointments'),
     where('studentId', '==', user.uid),
+    orderBy('date', 'desc'),
+    limit(pageSize),
   );
   return onSnapshot(
     requestsQuery,
@@ -331,7 +458,11 @@ export function subscribeToStudentAppointmentRequests(
             (second.queueNumber ?? 0) - (first.queueNumber ?? 0) ||
             (second.createdAt?.getTime() ?? 0) - (first.createdAt?.getTime() ?? 0),
         );
-        onRequests(requests);
+        onRequests(
+          requests,
+          snapshot.docs[snapshot.docs.length - 1],
+          snapshot.docs.length === pageSize,
+        );
       } catch (error) {
         onError(error instanceof Error ? error : new Error('Could not read appointment requests.'));
       }
@@ -577,10 +708,10 @@ export async function refreshQueueEstimates(requests: AppointmentRequest[]) {
   }
 }
 
-export async function finishAppointment(requestId: string) {
+export async function finishAppointment(requestId: string): Promise<boolean> {
   const db = getFirebaseFirestore();
   const appointmentRef = doc(db, 'appointments', requestId);
-  await runTransaction(db, async (transaction) => {
+  return runTransaction(db, async (transaction) => {
     const appointment = await transaction.get(appointmentRef);
     if (!appointment.exists() || appointment.data().status !== 'serving') {
       throw new Error('This appointment is not currently being served.');
@@ -614,16 +745,18 @@ export async function finishAppointment(requestId: string) {
       if (lock.exists() && lock.data().appointmentId === requestId) {
         transaction.delete(lockRef);
       }
+      return true;
     } else {
       transaction.update(appointmentRef, { cashierFinishedAt: finishedAt });
+      return false;
     }
   });
 }
 
-export async function confirmStudentTransactionFinished(requestId: string) {
+export async function confirmStudentTransactionFinished(requestId: string): Promise<boolean> {
   const db = getFirebaseFirestore();
   const appointmentRef = doc(db, 'appointments', requestId);
-  await runTransaction(db, async (transaction) => {
+  return runTransaction(db, async (transaction) => {
     const appointment = await transaction.get(appointmentRef);
     if (!appointment.exists() || appointment.data().status !== 'serving') {
       throw new Error('This appointment is no longer being served.');
@@ -650,8 +783,10 @@ export async function confirmStudentTransactionFinished(requestId: string) {
       if (lock.exists() && lock.data().appointmentId === requestId) {
         transaction.delete(lockRef);
       }
+      return true;
     } else {
       transaction.update(appointmentRef, { studentFinishedAt: finishedAt });
+      return false;
     }
   });
 }

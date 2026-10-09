@@ -26,7 +26,7 @@ const services = [
   { id: 'general-transaction', title: 'General Transaction' },
 ];
 
-type IncidentType = 'late-cancellation' | 'no-show';
+type IncidentType = 'no-show';
 
 function requireAuth(
   auth: { uid: string; token: Record<string, unknown> } | undefined,
@@ -424,87 +424,6 @@ export const rescheduleStudentAppointment = onCall({ region }, async (request) =
   });
 
   return { appointmentId: replacementRef.id };
-});
-
-export const cancelStudentAppointment = onCall({ region }, async (request) => {
-  const userId = requireAuth(request.auth);
-  const requestId = readCallableString(request.data?.requestId, 'appointment ID');
-  const db = getFirestore();
-  const user = await requireStudent(db, userId);
-  const appointmentRef = db.collection('appointments').doc(requestId);
-  const lockRef = db.collection('activeAppointmentLocks').doc(userId);
-  const nowDate = formatBusinessDate();
-  const now = Timestamp.now();
-
-  await db.runTransaction(async (transaction) => {
-    const appointment = await transaction.get(appointmentRef);
-    if (!appointment.exists) {
-      throw new HttpsError('not-found', 'This appointment no longer exists.');
-    }
-    const data = appointment.data()!;
-    if (
-      data.studentId !== userId ||
-      !['pending', 'approved'].includes(data.status) ||
-      !isValidBusinessDate(data.date) ||
-      data.arrivedAt
-    ) {
-      throw new HttpsError(
-        'failed-precondition',
-        'This appointment can only be cancelled while pending or approved and before check-in.',
-      );
-    }
-
-    const isLate = data.date <= nowDate;
-    const capacityRef = db.collection('appointmentCapacity').doc(data.date);
-    const [lock, capacity] = await Promise.all([
-      transaction.get(lockRef),
-      isLate && data.date < nowDate ? null : transaction.get(capacityRef),
-    ]);
-    if (capacity) {
-      const booked = capacity.data()?.appointmentsBooked;
-      if (
-        !capacity.exists ||
-        typeof booked !== 'number' ||
-        !Number.isInteger(booked) ||
-        booked < 1
-      ) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Could not release this appointment’s capacity. Contact the cashier.',
-        );
-      }
-    }
-
-    if (isLate) {
-      await recordBookingIncident(
-        transaction,
-        db,
-        userId,
-        typeof user.displayName === 'string' ? user.displayName : 'Student',
-        requestId,
-        'late-cancellation',
-      );
-    }
-
-    transaction.update(appointmentRef, {
-      status: 'cancelled',
-      cancelledAt: now,
-      lateCancellation: isLate,
-      cancellationReason: 'student-cancelled',
-    });
-    if (lock.exists && lock.data()?.appointmentId === requestId) {
-      transaction.delete(lockRef);
-    }
-    if (capacity) {
-      transaction.update(capacityRef, {
-        appointmentsBooked: capacity.data()!.appointmentsBooked - 1,
-        lastCancellationId: requestId,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    }
-  });
-
-  return { cancelled: true };
 });
 
 export const overrideStudentBookingHold = onCall({ region }, async (request) => {
