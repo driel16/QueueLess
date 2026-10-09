@@ -1,10 +1,10 @@
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, GraduationCap } from 'lucide-react-native';
+import { ArrowRight, BriefcaseBusiness, GraduationCap } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandMark } from '../../brand-mark';
+import { BrandLogo } from '../../brand-mark';
 import { useQueuelessPalette } from '../../palette';
 import { useQueuelessStyles } from '../../styles';
 
@@ -19,18 +19,10 @@ export default function ChooseRoleScreen() {
         style={styles.splashScroll}
         contentContainerStyle={styles.roleSelectionScrollContent}
         showsVerticalScrollIndicator={false}>
-        <Pressable
-          style={[styles.backButton, styles.roleSelectionBackButton]}
-          onPress={() => router.replace('/')}
-          accessibilityRole="button"
-          accessibilityLabel="Back to welcome screen"
-          accessibilityHint="Returns to the QueueLess welcome screen">
-          <ArrowLeft size={18} color={palette.roleSelectionText} strokeWidth={2.5} />
-        </Pressable>
         <View style={styles.roleSelectionBody}>
           <View style={styles.roleSelectionBrand}>
             <View style={styles.roleSelectionLogo}>
-              <BrandMark size={84} />
+              <BrandLogo />
             </View>
             <Text style={styles.roleSelectionBrandTitle}>QueueLess</Text>
             <Text style={styles.roleSelectionTagline}>Skip the line. Book your spot.</Text>
@@ -48,10 +40,10 @@ export default function ChooseRoleScreen() {
               accessibilityRole="button"
               accessibilityLabel="Continue as a student">
               <View style={[styles.roleSelectionIcon, styles.roleSelectionStudentIcon]}>
-                <GraduationCap size={29} color={palette.splashBlue} strokeWidth={2.2} />
+                <GraduationCap size={34} color={palette.splashBlue} strokeWidth={2.2} />
               </View>
               <View style={styles.roleSelectionCardCopy}>
-                <Text style={styles.roleSelectionStudentTitle}>I’m a student</Text>
+                <Text style={styles.roleSelectionStudentTitle}>{"I'm a student"}</Text>
                 <Text style={styles.roleSelectionStudentSubtitle}>
                   Book and manage your visits
                 </Text>
@@ -64,10 +56,10 @@ export default function ChooseRoleScreen() {
               accessibilityRole="button"
               accessibilityLabel="Continue as staff">
               <View style={[styles.roleSelectionIcon, styles.roleSelectionStaffIcon]}>
-                <BriefcaseBusiness size={27} color={palette.white} strokeWidth={2} />
+                <BriefcaseBusiness size={32} color={palette.white} strokeWidth={2} />
               </View>
               <View style={styles.roleSelectionCardCopy}>
-                <Text style={styles.roleSelectionStaffTitle}>I’m staff</Text>
+                <Text style={styles.roleSelectionStaffTitle}>{"I'm staff"}</Text>
                 <Text style={styles.roleSelectionStaffSubtitle}>
                   Manage requests and the queue
                 </Text>

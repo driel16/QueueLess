@@ -1,11 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import * as Linking from 'expo-linking';
-import { AtSign, BellRing, Check, Hash, MailCheck } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { AtSign, Check, Hash, MailCheck } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
-  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -38,12 +35,6 @@ import { services } from '../../data';
 import { useQueuelessStyles } from '../../styles';
 import { useQueuelessPalette } from '../../palette';
 import { useStudentAppointments } from '../../appointments/hooks/use-student-appointments';
-import { getFirebaseAuth } from '@/lib/firebase';
-import {
-  getStudentPushPermission,
-  requestStudentQueuePushNotifications,
-  type StudentPushPermission,
-} from '../../queue/push-notifications';
 
 export function RegisterScreen() {
   const styles = useQueuelessStyles();
@@ -676,113 +667,6 @@ export function QueueHistoryScreen() {
   );
 }
 
-function StudentPushNotificationSettings() {
-  const styles = useQueuelessStyles();
-  const palette = useQueuelessPalette();
-  const [permission, setPermission] = useState<StudentPushPermission | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isWorking, setIsWorking] = useState(false);
-  const [error, setError] = useState<string>();
-  const userId = getFirebaseAuth().currentUser?.uid;
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const refreshPermission = async () => {
-      try {
-        const currentPermission = await getStudentPushPermission();
-        if (isMounted) setPermission(currentPermission);
-      } catch (permissionError) {
-        if (isMounted) {
-          setError(
-            permissionError instanceof Error
-              ? permissionError.message
-              : 'Could not check notification permissions.',
-          );
-        }
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-
-    void refreshPermission();
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void refreshPermission();
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, []);
-
-  const onPress = async () => {
-    if (!userId || isWorking) return;
-
-    setIsWorking(true);
-    setError(undefined);
-    try {
-      if (permission?.canAskAgain !== false) {
-        const updatedPermission = await requestStudentQueuePushNotifications(userId);
-        setPermission(updatedPermission);
-      } else {
-        await Linking.openSettings();
-      }
-    } catch (permissionError) {
-      setError(
-        permissionError instanceof Error
-          ? permissionError.message
-          : 'Could not update notification settings.',
-      );
-    } finally {
-      setIsWorking(false);
-    }
-  };
-
-  if (Platform.OS === 'web') return null;
-
-  return (
-    <View style={styles.compactCard}>
-      <View style={styles.rowStart}>
-        <BellRing size={20} color={palette.greenDark} strokeWidth={2} />
-        <Text style={styles.itemTitle}>Queue alerts</Text>
-      </View>
-      {isLoading ? (
-        <ActivityIndicator color={palette.greenDark} />
-      ) : permission?.granted ? (
-        <Text style={styles.itemSubtle}>Notifications are enabled on this device.</Text>
-      ) : (
-        <>
-          <Text style={styles.itemSubtle}>
-            Get a device alert when your appointment is approved or the cashier is ready.
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isWorking }}
-            disabled={isWorking}
-            style={styles.primaryButton}
-            onPress={onPress}>
-            {isWorking ? (
-              <ActivityIndicator color={palette.white} />
-            ) : (
-              <Text style={styles.primaryButtonText}>
-                {permission?.canAskAgain !== false
-                  ? 'Enable notifications'
-                  : 'Open device settings'}
-              </Text>
-            )}
-          </Pressable>
-        </>
-      )}
-      {error ? (
-        <Text accessibilityRole="alert" style={{ color: palette.dangerAction, fontSize: 13 }}>
-          {error}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
 export function NotificationsScreen() {
   const styles = useQueuelessStyles();
   const palette = useQueuelessPalette();
@@ -798,7 +682,6 @@ export function NotificationsScreen() {
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Header title="Notifications" subtitle="Queue and appointment alerts" backTo="/home" />
-        <StudentPushNotificationSettings />
         {error ? <ErrorBanner message={error} /> : null}
         {actionError ? <ErrorBanner message={actionError} /> : null}
         {isLoading ? <ActivityIndicator color={palette.greenDark} /> : null}

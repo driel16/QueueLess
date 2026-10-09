@@ -4,5 +4,6 @@
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
   },
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
   "python-envs.defaultEnvManager": "ms-python.python:system"
 }

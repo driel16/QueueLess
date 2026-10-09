@@ -8,7 +8,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandMark } from '../../brand-mark';
+import { BrandLogo } from '../../brand-mark';
 import { ADMIN_EMAIL } from '../../auth/auth';
 import { ErrorBanner } from '../../components';
 import { useQueuelessPalette } from '../../palette';
@@ -82,10 +82,15 @@ export default function SplashScreen() {
       <SafeAreaView style={[styles.splash, styles.splashLanding]}>
         <StatusBar style="dark" />
         <View style={styles.splashRestore}>
-          <View style={styles.splashLogo}>
-            <BrandMark />
+          <View style={styles.splashRestoreBrand}>
+            <View style={styles.splashLogo}>
+              <BrandLogo />
+            </View>
+            <View style={styles.splashHeroCopy}>
+              <Text style={styles.brand}>QueueLess</Text>
+              <Text style={styles.tagline}>Your time matters.</Text>
+            </View>
           </View>
-          <Text style={styles.brand}>QueueLess</Text>
           <ActivityIndicator color={palette.ink} />
         </View>
       </SafeAreaView>
@@ -103,7 +108,7 @@ export default function SplashScreen() {
         <View style={styles.splashCenter}>
           <View style={styles.splashHero}>
             <Animated.View entering={FadeInDown.duration(650)} style={styles.splashLogo}>
-              <BrandMark />
+              <BrandLogo />
             </Animated.View>
             <Animated.View entering={FadeInUp.delay(100).duration(550)} style={styles.splashHeroCopy}>
               <Text style={styles.brand}>QueueLess</Text>

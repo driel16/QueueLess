@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
-import { ArrowLeft, AtSign, BriefcaseBusiness, MailCheck, Search } from 'lucide-react-native';
+import { AtSign, BriefcaseBusiness, MailCheck, Search } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -89,14 +89,6 @@ export function StaffLoginScreen() {
         contentContainerStyle={styles.authContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Pressable
-          style={styles.staffLoginBackButton}
-          onPress={() => router.replace('/choose-role')}
-          accessibilityRole="button"
-          accessibilityLabel="Back to account type selection">
-          <ArrowLeft size={18} color={palette.blue} />
-          <Text style={styles.staffLoginBackText}>Back</Text>
-        </Pressable>
         <View style={styles.loginHero}>
           <View style={styles.schoolShield}>
             <Text style={styles.schoolShieldText}>QL</Text>

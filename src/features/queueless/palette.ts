@@ -58,8 +58,6 @@ export const prototype1Palette = {
   splashRoleStudentText: '#4B617D',
   splashHomeEyebrow: '#D58B00',
   splashHomeSubtitle: '#5F7389',
-  splashLogoBorder: 'rgba(20,61,122,0.12)',
-  splashLogoShadow: '0px 12px 24px rgba(20,61,122,0.16)',
   splashButtonBorder: 'rgba(26,183,166,0.22)',
   splashButtonShadow: '0px 16px 28px rgba(20,61,122,0.18)',
   splashFooterRule: '#DDEAFB',
@@ -120,7 +118,6 @@ export const darkPalette = {
   splashHomeSubtitle: '#C0D0E5',
   splashRoleSurface: '#1E375D',
   splashRoleStudentText: '#D4E0F3',
-  splashLogoBorder: 'rgba(255,255,255,0.14)',
   splashButtonBorder: 'rgba(255,255,255,0.18)',
   splashFooterRule: 'rgba(255,255,255,0.18)',
   splashRoleBorder: 'rgba(255,255,255,0.24)',
@@ -135,9 +132,7 @@ export type Palette = typeof prototype1Palette;
 export const palette = prototype1Palette;
 
 export const brandMarkPalette = {
-  paper: '#F4FAFF',
-  navy: '#102B4E',
-  mint: '#23C7B5',
+  blue: '#1F5BFF',
   white: '#FFFFFF',
 };
 
